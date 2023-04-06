@@ -189,7 +189,7 @@ Several options are available as part of the deployment and can be configured in
 - OUTPUT_BUCKET - This will control where the output files are stored. If this is not included, a new Bucket will be created.
 - RECORDING_BUCKET_PREFIX - This will control if an Bucket prefix is used when storing the output files. Defaults to no prefix.
 - BUILD_ASTERISK - This will determine if an Asterisk instance will be created during the deployment. This cannot be used with SIPREC_CIDRS. Defaults to 'true'.
-- SIPREC_CIDRS - These will be used if you are not deploying an Asterisk server and instead want to use their existing telephony to generate SIPREC traffic. They should use a comma separate string format: `'198.51.100.0/27','198.51.100.128/27'`.
+- SIPREC_CIDRS - These will be used if you are not deploying an Asterisk server and instead want to use their existing telephony to generate SIPREC traffic. They should use a comma separated string format: `'198.51.100.0/27','198.51.100.128/27'`.
 - LOG_LEVEL - Used to assist with debugging in the Lambda function and Asterisk instance. 'INFO' | 'DEBUG' | 'WARN' | 'ERROR'. Defaults to 'INFO'.
 - REMOVAL_POLICY - Used to control the removal policy of the new S3 Bucket that is created. Valid options: 'DESTROY' | 'RETAIN' | 'SNAPSHOT'. Defaults to 'DESTROY'
 
