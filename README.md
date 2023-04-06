@@ -87,7 +87,7 @@ This Python function in the Lambda code will store the `call_id`, `stream_arn`, 
 
 ### Call Ends
 
-When the call ends, two more notifications will be sent by EventBridge to our `StartRecord` Lambda function. These notifications will something like this:
+When the call ends, two more notifications will be sent by EventBridge to our `StartRecord` Lambda function. These notifications will look something like this:
 
 ```json
 {
@@ -166,13 +166,15 @@ response = media_pipelines.create_media_insights_pipeline(
 )
 ```
 
-Using the stream ARNs, start time, and end time, we can call [`create_media_insights_pipeline`](https://boto3.amazonaws.com/v1/documentation/api/1.26.101/reference/services/chime-sdk-media-pipelines/client/create_media_insights_pipeline.html).
-
-In this case, we are referencing a `MediaInsightsPipelineConfigurationArn` that was created as part of this demo as well as the S3 Bucket referenced in that configuration.
+Using the stream ARNs, start time, and end time, we can call [`create_media_insights_pipeline`](https://boto3.amazonaws.com/v1/documentation/api/1.26.101/reference/services/chime-sdk-media-pipelines/client/create_media_insights_pipeline.html). In this case, we are referencing a `MediaInsightsPipelineConfigurationArn` that was created as part of this demo as well as the S3 Bucket referenced in that configuration. After the call is completed and we start this process, the media insight pipeline will consume the RTP packets from the KVS stream and put the file in the S3 bucket. This is why the data retention of the KVS stream must be set to a length greater than the longest possible call duration.
 
 ![S3RecordingSinkConfiguration](images/S3RecordingSinkConfiguration.png)
 
-## Result
+## Testing It Out
+
+To see it in action, if you deployed the Asterisk instance, make a call to the phone number that is provided as part of the CDK output. This call will be answered on the Asterisk server and your voice will be echoed back to you. If you are using SIPREC instead, make a call through your telephony devices and make a SIPREC request to the Amazon Chime SDK voice connector.
+
+### Results
 
 ![Result](images/Result.png)
 
