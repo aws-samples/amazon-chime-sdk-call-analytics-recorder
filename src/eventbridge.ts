@@ -72,6 +72,7 @@ export class EventBridgeResources extends Construct {
         RECORDING_BUCKET: props.recordingBucket.bucketName,
         LOG_LEVEL: 'INFO',
         RECORDING_BUCKET_PREFIX: props.recordingBucketPrefix,
+        VOICECONNECTOR_ID: props.voiceConnectorId,
         MEDIA_INSIGHT_PIPELINE_ARN:
           props.mediaPipeline.mediaInsightsPipelineConfigurationArn,
       },
