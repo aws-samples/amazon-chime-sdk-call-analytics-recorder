@@ -224,3 +224,9 @@ If you do not wish to deploy this demo using CDK, AWS Command Line Interface can
 ### Lambda function
 
 Because this uses commands that may not be available in all Lambda runtimes, the demo bundles a version of the AWS SDK that supports `create_media_insights_pipeline`. If you wish to use a different Lambda function or language, be sure to include a runtime that supports this or bundle a version of the AWS SDK that does.
+
+## Summarization
+
+https://aws.amazon.com/marketplace/pp/prodview-6dmzzso5vu5my
+
+aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws

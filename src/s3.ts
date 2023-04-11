@@ -33,6 +33,7 @@ export class S3Resources extends Construct {
       removalPolicy: removalPolicy,
       autoDeleteObjects: autoDelete,
       encryption: BucketEncryption.S3_MANAGED,
+      eventBridgeEnabled: true,
     });
   }
 }
