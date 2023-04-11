@@ -56,6 +56,7 @@ export class SummarizationStateMachineResources extends Construct {
     const definition = checkEndpointTask;
 
     const inService = new Pass(this, 'InService');
+    const starting = new Pass(this, 'Starting');
     const wait = new Wait(this, 'Wait', {
       time: WaitTime.duration(Duration.seconds(10)),
     });
@@ -65,7 +66,11 @@ export class SummarizationStateMachineResources extends Construct {
         Condition.stringEquals('$.Payload.body.endpoint_status', 'InService'),
         inService.next(startSummarizationTask),
       )
-      .otherwise(wait.next(startSagemakerTask).next(checkEndpointTask));
+      .when(
+        Condition.stringEquals('$.Payload.body.endpoint_status', 'Creating'),
+        wait.next(checkEndpointTask),
+      )
+      .otherwise(starting.next(startSagemakerTask).next(checkEndpointTask));
 
     definition.next(checkEndpointChoice);
 

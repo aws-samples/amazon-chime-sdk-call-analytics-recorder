@@ -277,6 +277,9 @@ export class SummarizationLambdaResources extends Construct {
                 }:endpoint/${props.endpointName}`,
                 `arn:aws:sagemaker:${Stack.of(this).region}:${
                   Stack.of(this).account
+                }:endpoint-config/*`,
+                `arn:aws:sagemaker:${Stack.of(this).region}:${
+                  Stack.of(this).account
                 }:model/*`,
                 `arn:aws:sagemaker:${Stack.of(this).region}:${
                   Stack.of(this).account
@@ -285,7 +288,7 @@ export class SummarizationLambdaResources extends Construct {
               ],
             }),
             new PolicyStatement({
-              actions: ['iam:GetRole'],
+              actions: ['iam:GetRole', 'iam:PassRole'],
               resources: ['*'],
             }),
           ],
