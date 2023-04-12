@@ -112,6 +112,7 @@ interface SummarizationLambdaResourcesProps {
   modelPackageArn: string;
   logLevel: string;
   cohereInstanceType: string;
+  modelName: string;
 }
 
 export class SummarizationLambdaResources extends Construct {
@@ -179,7 +180,11 @@ export class SummarizationLambdaResources extends Construct {
           statements: [
             new PolicyStatement({
               actions: ['sagemaker:DescribeEndpoint'],
-              resources: ['*'],
+              resources: [
+                `arn:aws:sagemaker:${Stack.of(this).region}:${
+                  Stack.of(this).account
+                }:endpoint/${props.endpointName}`,
+              ],
             }),
           ],
         }),
@@ -196,6 +201,7 @@ export class SummarizationLambdaResources extends Construct {
       handler: 'index.handler',
       role: checkEndpointRole,
       runtime: Runtime.PYTHON_3_9,
+      timeout: Duration.minutes(1),
       environment: {
         LOG_LEVEL: props.logLevel,
         ENDPOINT_NAME: props.endpointName,
@@ -237,22 +243,20 @@ export class SummarizationLambdaResources extends Construct {
       ],
     });
 
-    this.checkStatusLambda = new DockerImageFunction(
-      this,
-      'checkStatusLambda',
-      {
-        code: DockerImageCode.fromImageAsset('src/resources/checkStatus'),
-        timeout: Duration.minutes(1),
-        role: checkStatusRole,
-        environment: {
-          STATUS_TABLE: props.statusTable.tableName,
-          LOG_LEVEL: props.logLevel,
-          ENDPOINT_NAME: props.endpointName,
-          MODEL_PACKAGE_ARN: props.modelPackageArn,
-          SAGEMAKER_ROLE: sageMakerRole.roleName,
-        },
+    this.checkStatusLambda = new Function(this, 'checkStatusLambda', {
+      code: Code.fromAsset('src/resources/checkStatus'),
+      handler: 'index.handler',
+      runtime: Runtime.PYTHON_3_9,
+      timeout: Duration.minutes(1),
+      role: checkStatusRole,
+      environment: {
+        STATUS_TABLE: props.statusTable.tableName,
+        LOG_LEVEL: props.logLevel,
+        ENDPOINT_NAME: props.endpointName,
+        MODEL_PACKAGE_ARN: props.modelPackageArn,
+        SAGEMAKER_ROLE: sageMakerRole.roleArn,
       },
-    );
+    });
 
     props.statusTable.grantReadWriteData(this.checkStatusLambda);
 
@@ -262,7 +266,14 @@ export class SummarizationLambdaResources extends Construct {
         ['stateMachinePolicy']: new PolicyDocument({
           statements: [
             new PolicyStatement({
-              actions: ['sagemaker:*'],
+              actions: [
+                'sagemaker:DescribeEndpoint',
+                'sagemaker:DescribeEndpointConfig',
+                'sagemaker:DescribeModel',
+                'sagemaker:CreateModel',
+                'sagemaker:CreateEndpoint',
+                'sagemaker:CreateEndpointConfig',
+              ],
               resources: [
                 `arn:aws:sagemaker:${Stack.of(this).region}:${
                   Stack.of(this).account
@@ -273,34 +284,12 @@ export class SummarizationLambdaResources extends Construct {
                 `arn:aws:sagemaker:${Stack.of(this).region}:${
                   Stack.of(this).account
                 }:model/*`,
-                `arn:aws:sagemaker:${Stack.of(this).region}:${
-                  Stack.of(this).account
-                }:model-package/*`,
                 'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-4-825b877abfd53d7ca65fd7b4b262c421',
               ],
             }),
             new PolicyStatement({
               actions: ['iam:GetRole', 'iam:PassRole'],
               resources: ['*'],
-            }),
-          ],
-        }),
-        ['ssmPolicy']: new PolicyDocument({
-          statements: [
-            new PolicyStatement({
-              actions: ['sagemaker:*'],
-              resources: [
-                `arn:aws:sagemaker:${Stack.of(this).region}:${
-                  Stack.of(this).account
-                }:endpoint/${props.endpointName}`,
-                `arn:aws:sagemaker:${Stack.of(this).region}:${
-                  Stack.of(this).account
-                }:model/*`,
-                `arn:aws:sagemaker:${Stack.of(this).region}:${
-                  Stack.of(this).account
-                }:model-package/*`,
-                'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-4-825b877abfd53d7ca65fd7b4b262c421',
-              ],
             }),
           ],
         }),
@@ -313,22 +302,21 @@ export class SummarizationLambdaResources extends Construct {
       ],
     });
 
-    this.startSagemakerLambda = new DockerImageFunction(
-      this,
-      'startSagemakerLambda',
-      {
-        code: DockerImageCode.fromImageAsset('src/resources/startSagemaker'),
-        timeout: Duration.minutes(15),
-        role: startSagemakerRole,
-        environment: {
-          LOG_LEVEL: props.logLevel,
-          ENDPOINT_NAME: props.endpointName,
-          MODEL_PACKAGE_ARN: props.modelPackageArn,
-          SAGEMAKER_ROLE: sageMakerRole.roleName,
-          COHERE_INSTANCE_TYPE: props.cohereInstanceType,
-        },
+    this.startSagemakerLambda = new Function(this, 'startSagemakerLambda', {
+      code: Code.fromAsset('src/resources/startSagemaker'),
+      handler: 'index.handler',
+      runtime: Runtime.PYTHON_3_9,
+      timeout: Duration.minutes(15),
+      role: startSagemakerRole,
+      environment: {
+        LOG_LEVEL: props.logLevel,
+        ENDPOINT_NAME: props.endpointName,
+        MODEL_PACKAGE_ARN: props.modelPackageArn,
+        SAGEMAKER_ROLE: sageMakerRole.roleName,
+        COHERE_INSTANCE_TYPE: props.cohereInstanceType,
+        MODEL_NAME: props.modelName,
       },
-    );
+    });
 
     const startSummarizationRole = new Role(this, 'startSummarizationRole', {
       assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
@@ -364,10 +352,11 @@ export class SummarizationLambdaResources extends Construct {
         timeout: Duration.minutes(15),
         environment: {
           LOG_LEVEL: props.logLevel,
+          MODEL_NAME: props.modelName,
           STATUS_TABLE: props.statusTable.tableName,
           ENDPOINT_NAME: props.endpointName,
           MODEL_PACKAGE_ARN: props.modelPackageArn,
-          SAGEMAKER_ROLE: sageMakerRole.roleName,
+          SAGEMAKER_ROLE: sageMakerRole.roleArn,
           OUTPUT_BUCKET: props.recordingBucket.bucketName,
           OUTPUT_BUCKET_PREFIX: 'summaryOutput',
         },

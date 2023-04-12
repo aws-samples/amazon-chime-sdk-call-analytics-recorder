@@ -20,12 +20,16 @@ def handler(event, context):
     global LOG_PREFIX
     LOG_PREFIX = 'StartStateMachine Notification: '
 
-    s3_bucket = event['Records'][0]['s3']['bucket']['name']
-    s3_key = event['Records'][0]['s3']['object']['key']
+    bucket = event['Records'][0]['s3']['bucket']['name']
+    key = event['Records'][0]['s3']['object']['key']
 
+    if not key.lower().endswith('.json'):
+        print('File is not a json file')
+        return
+    
     state_machine_input = {
-        'bucket': s3_bucket,
-        'key': s3_key
+        'bucket': bucket,
+        'key': key
     }
 
     logger.info('%s Event: %s', LOG_PREFIX, event)

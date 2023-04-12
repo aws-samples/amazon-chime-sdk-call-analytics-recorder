@@ -125,6 +125,7 @@ export interface AmazonChimeSDKCallAnalyticsSummarizationProps
   endpointName: string;
   cohereInstanceType: string;
   modelPackageArn: string;
+  modelName: string;
 }
 
 export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
@@ -155,6 +156,7 @@ export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
         modelPackageArn: props.modelPackageArn,
         logLevel: props.logLevel,
         cohereInstanceType: props.cohereInstanceType,
+        modelName: props.modelName,
       },
     );
 
@@ -203,6 +205,7 @@ const amazonChimeSDKCallAnalyticsRecording =
 
 const summarizationStackProps = {
   recordingBucket: amazonChimeSDKCallAnalyticsRecording.recordingBucket,
+  modelName: process.env.MODEL_NAME || 'cohere-gpt-medium',
   logLevel: process.env.LOG_LEVEL || 'INFO',
   endpointName: process.env.ENDPOINT_NAME || 'cohere-gpt-medium',
   cohereInstanceType: process.env.COHERE_INSTANCE_TYPE || 'ml.g5.xlarge',

@@ -16,6 +16,7 @@ import {
   StateMachine,
   WaitTime,
   Condition,
+  Fail,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { Construct } from 'constructs';
@@ -56,23 +57,46 @@ export class SummarizationStateMachineResources extends Construct {
     const definition = checkEndpointTask;
 
     const inService = new Pass(this, 'InService');
-    const starting = new Pass(this, 'Starting');
+    const outOfService = new Pass(this, 'OutOfService');
+    const failedTask = new Fail(this, 'Failed');
     const wait = new Wait(this, 'Wait', {
-      time: WaitTime.duration(Duration.seconds(10)),
+      time: WaitTime.duration(Duration.seconds(30)),
     });
 
-    const checkEndpointChoice = new Choice(this, 'CheckEndpointChoice')
+    const checkEndpointStatus = new Choice(this, 'CheckEndpointStatus')
+      .when(
+        Condition.or(
+          Condition.stringEquals(
+            '$.Payload.body.endpoint_status',
+            'OutOfService',
+          ),
+          Condition.stringEquals('$.Payload.body.endpoint_status', 'NotFound'),
+        ),
+        outOfService.next(startSagemakerTask.next(checkEndpointTask)),
+      )
       .when(
         Condition.stringEquals('$.Payload.body.endpoint_status', 'InService'),
         inService.next(startSummarizationTask),
       )
       .when(
-        Condition.stringEquals('$.Payload.body.endpoint_status', 'Creating'),
+        Condition.or(
+          Condition.stringEquals('$.Payload.body.endpoint_status', 'Creating'),
+          Condition.stringEquals('$.Payload.body.endpoint_status', 'Updating'),
+          Condition.stringEquals(
+            '$.Payload.body.endpoint_status',
+            'SystemUpdating',
+          ),
+          Condition.stringEquals(
+            '$.Payload.body.endpoint_status',
+            'RollingBack',
+          ),
+          Condition.stringEquals('$.Payload.body.endpoint_status', 'Deleting'),
+        ),
         wait.next(checkEndpointTask),
       )
-      .otherwise(starting.next(startSagemakerTask).next(checkEndpointTask));
+      .otherwise(failedTask);
 
-    definition.next(checkEndpointChoice);
+    definition.next(checkEndpointStatus);
 
     const stateMachine = new StateMachine(this, 'SagemakerStateMachine', {
       definition: definition,

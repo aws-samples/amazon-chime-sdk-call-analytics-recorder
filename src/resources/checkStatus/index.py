@@ -34,17 +34,18 @@ def handler(event, context):
 
     logger.info('%s Event Received %s ', LOG_PREFIX, event)
     # Get the bucket name and key from the event object
-    cutoff_time = int((datetime.utcnow() - timedelta(minutes=20)).timestamp())
+    
+    twenty_minutes_ago = int((datetime.utcnow() - timedelta(minutes=20)).timestamp())
 
     try:
-        response = dynamodb_client.query(
+        response = dynamodb_client.scan(
             TableName=STATUS_TABLE,
-            KeyConditionExpression='summarization_time < :cutoff_time',
+            FilterExpression='summarization_time >= :t',
             ExpressionAttributeValues={
-                ':cutoff_time': {'N': str(cutoff_time)}
-            },
-            ScanIndexForward=True,  # Sort in ascending order by prompt_id
+                ':t': {'N': str(twenty_minutes_ago)}
+            }
         )
+        logger.info('%s Records found: %s', LOG_PREFIX, response['Items'])
         items = response['Items']
         if len(items) > 0:
             logger.info('%s Found %s records with timestamp less than 20 minutes ago.', LOG_PREFIX, len(items))
@@ -53,12 +54,9 @@ def handler(event, context):
             logger.info('%s Terminating Sagemaker instance', LOG_PREFIX)
             delete_sagemaker()
 
-    except botocore.exceptions.ClientError as error:
-        if error.response['Error']['Code'] == 'ValidationException':
-            logger.error('%s ValidationException: No records found', LOG_PREFIX)
-            delete_sagemaker()
-        else:
-            raise error
+    except Exception as error:
+        logger.error("%s Error: %s", LOG_PREFIX, error)
+
 
 def delete_sagemaker():
     try:
@@ -66,14 +64,14 @@ def delete_sagemaker():
         endpoint_status = response['EndpointStatus']
     except botocore.exceptions.ClientError as error:
         if error.response['Error']['Code'] == 'ValidationException':
-            endpoint_status = 'Nonexistent'
+            endpoint_status = 'NonExistent'
         else:
             raise error
 
     logger.info('%s Endpoint Status: %s', LOG_PREFIX, endpoint_status)
 
 
-    if endpoint_status != 'Nonexistent':
+    if endpoint_status != 'NonExistent':
         try:
             response = sagemaker_client.describe_endpoint_config(EndpointConfigName=ENDPOINT_NAME)
             model_name = response['ProductionVariants'][0]['ModelName']
@@ -86,8 +84,8 @@ def delete_sagemaker():
             logger.info('%s Deleted Sagemaker endpoint %s', LOG_PREFIX, ENDPOINT_NAME)
     else:
         logger.info('%s Sagemaker endpoint %s does not exist', LOG_PREFIX, ENDPOINT_NAME)
-  
-        
+
+
 def update_database():
     prompt_id = str(uuid.uuid4())
     timestamp = int(datetime.utcnow().timestamp())
