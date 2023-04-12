@@ -14,7 +14,6 @@ import {
   Runtime,
   Code,
   Function,
-  LayerVersion,
   DockerImageFunction,
   DockerImageCode,
 } from 'aws-cdk-lib/aws-lambda';
@@ -39,21 +38,6 @@ export class RecordingLambdaResources extends Construct {
     props: RecordingLambdaResourcesProps,
   ) {
     super(scope, id);
-
-    const boto3Layer = new LayerVersion(this, 'boto3Layer', {
-      layerVersionName: `boto3Layer-${Stack.of(this).stackId.slice(-6, -2)}`,
-      code: Code.fromAsset('src/resources/boto3Layer', {
-        bundling: {
-          image: Runtime.PYTHON_3_9.bundlingImage,
-          command: [
-            'bash',
-            '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output',
-          ],
-        },
-      }),
-      compatibleRuntimes: [Runtime.PYTHON_3_9],
-    });
 
     const startRecordRole = new Role(this, 'startRecordRole', {
       assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
@@ -83,8 +67,16 @@ export class RecordingLambdaResources extends Construct {
     });
 
     const startRecordLambda = new Function(this, 'startRecordLambda', {
-      code: Code.fromAsset('src/resources/startRecord'),
-      layers: [boto3Layer],
+      code: Code.fromAsset('src/resources/startRecord', {
+        bundling: {
+          image: Runtime.PYTHON_3_9.bundlingImage,
+          command: [
+            'bash',
+            '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output',
+          ],
+        },
+      }),
       handler: 'index.handler',
       environment: {
         CALL_TABLE: props.callTable.tableName,
