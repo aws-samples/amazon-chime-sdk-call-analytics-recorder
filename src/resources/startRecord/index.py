@@ -86,7 +86,7 @@ def handler(event, context):
                             }
                         )
                         # Call the function with the JSON object and S3 client
-                        write_call_details_to_s3(event, s3_client)
+                        write_call_details_to_s3(event)
                         logger.info('%s  %s', LOG_PREFIX, json.dumps(response,  cls=DateTimeEncoder, indent=4))
         elif event['detail-type'] == 'Media Insights State Change':
             if "failureReason" in event['detail']:
