@@ -4,10 +4,10 @@ import decimal
 import os
 import datetime
 import boto3
-
 dynamodb = boto3.client('dynamodb')
 media_pipelines = boto3.client("chime-sdk-media-pipelines")
-
+# Initialize the S3 client
+s3_client = boto3.client('s3')
 CALL_TABLE = os.environ['CALL_TABLE']
 RECORDING_BUCKET = os.environ['RECORDING_BUCKET']
 try:
@@ -19,7 +19,6 @@ except BaseException:
     RECORDING_BUCKET_PREFIX = ''
 MEDIA_INSIGHT_PIPELINE_ARN = os.environ['MEDIA_INSIGHT_PIPELINE_ARN']
 VOICECONNECTOR_ID = os.environ['VOICECONNECTOR_ID']
-
 # Set LOG_LEVEL using environment variable, fallback to INFO if not present
 logger = logging.getLogger()
 try:
@@ -29,26 +28,19 @@ try:
 except BaseException:
     LOG_LEVEL = 'INFO'
 logger.setLevel(LOG_LEVEL)
-
-
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
             return int(obj)
         return super(DecimalEncoder, self).default(obj)
-
-
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
             return obj.strftime("%Y-%m-%d %H:%M:%S")
         return json.JSONEncoder.default(self, obj)
-
-
 def handler(event, context):
     global LOG_PREFIX
     LOG_PREFIX = 'EventBridge Notification: '
-
     if 'detail-type' in event:
         if event['detail-type'] == 'AWS API Call via CloudTrail':
             logger.info('%s Event Name: %s | Event Source: %s', LOG_PREFIX, event['detail']['eventName'], event['detail']['eventSource'])
@@ -93,6 +85,8 @@ def handler(event, context):
                                 "RecordingFileFormat": "Wav"
                             }
                         )
+                        # Call the function with the JSON object and S3 client
+                        write_call_details_to_s3(event, s3_client)
                         logger.info('%s  %s', LOG_PREFIX, json.dumps(response,  cls=DateTimeEncoder, indent=4))
         elif event['detail-type'] == 'Media Insights State Change':
             if "failureReason" in event['detail']:
@@ -105,8 +99,6 @@ def handler(event, context):
         else:
             logger.info('%s Detail Type: %s', LOG_PREFIX, event['detail-type'])
             logger.debug('%s  %s', LOG_PREFIX, json.dumps(event,  cls=DecimalEncoder, indent=4))
-
-
 def put_item(call_id, stream_arn, is_caller, start_time):
     dynamodb.put_item(
         TableName=CALL_TABLE,
@@ -117,8 +109,6 @@ def put_item(call_id, stream_arn, is_caller, start_time):
             'start_time': {'N': str(start_time)}
             }
     )
-
-
 def get_streams(call_id):
     response = dynamodb.query(
         TableName=CALL_TABLE,
@@ -128,3 +118,35 @@ def get_streams(call_id):
             }
         )
     return response['Items'] if 'Items' in response else None
+def write_call_details_to_s3(event):
+    # Extract relevant fields from the JSON object
+    account = event['account']
+    call_id = event['detail']['callId']
+    direction = event['detail']['direction']
+    from_number = event['detail']['fromNumber']
+    to_number = event['detail']['toNumber']
+    voice_connector_id = event['detail']['voiceConnectorId']
+    start_time = event['detail']['startTime']
+    end_time = event['detail']['endTime']
+    # Construct the S3 object key using the specified format
+    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + call_id + '.json'
+    # Construct the data to be written to the JSON file
+    data = {
+        'account': account,
+        'callId': call_id,
+        'direction': direction,
+        'fromNumber': from_number,
+        'toNumber': to_number,
+        'voiceConnectorId': voice_connector_id,
+        'startTime': start_time,
+        'endTime': end_time
+    }
+    # Convert the data to a JSON string
+    json_data = json.dumps(data)
+    # Write the JSON string to the S3 bucket
+    response = s3_client.put_object(
+        Bucket=RECORDING_BUCKET,
+        Key=destination,
+        Body=json_data
+    )
+    return response
