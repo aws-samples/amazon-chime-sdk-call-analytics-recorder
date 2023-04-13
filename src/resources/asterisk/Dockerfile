@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 andrius/asterisk
+FROM --platform=$BUILDPLATFORM andrius/asterisk
 RUN apk --no-cache add curl jq aws-cli
 RUN aws --version
 ENV VOICE_CONNECTOR=${VOICE_CONNECTOR}

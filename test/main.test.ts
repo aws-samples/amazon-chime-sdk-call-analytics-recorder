@@ -1,7 +1,7 @@
 import { App } from 'aws-cdk-lib';
 import { AmazonChimeSDKCallAnalyticsRecording } from '../src/amazon-chime-sdk-call-analytics-recording';
 
-const stackProps = {
+const recordingStackProps = {
   outputBucket: '',
   recordingBucketPrefix: '',
   buildAsterisk: '',
@@ -13,7 +13,7 @@ const stackProps = {
 test('IncludedBucket', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'IncludedBucket', {
-    ...stackProps,
+    ...recordingStackProps,
     recordingBucketPrefix: 'test',
   });
 });
@@ -21,7 +21,7 @@ test('IncludedBucket', () => {
 test('GoodCIDR', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'GoodCIDR', {
-    ...stackProps,
+    ...recordingStackProps,
     sipRecCidrs: '198.51.100.0/27',
   });
 });
@@ -29,7 +29,7 @@ test('GoodCIDR', () => {
 test('AsteriskAndLogLevels', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'AsteriskAndLogLevels', {
-    ...stackProps,
+    ...recordingStackProps,
     buildAsterisk: 'true',
     logLevel: 'DEBUG',
   });
@@ -38,7 +38,7 @@ test('AsteriskAndLogLevels', () => {
 test('RETAIN', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'RETAIN', {
-    ...stackProps,
+    ...recordingStackProps,
     removalPolicy: 'RETAIN',
   });
 });
@@ -46,7 +46,7 @@ test('RETAIN', () => {
 test('DESTROY', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'DESTROY', {
-    ...stackProps,
+    ...recordingStackProps,
     removalPolicy: 'DESTROY',
   });
 });
@@ -54,7 +54,7 @@ test('DESTROY', () => {
 test('SNAPSHOT', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'SNAPSHOT', {
-    ...stackProps,
+    ...recordingStackProps,
     removalPolicy: 'SNAPSHOT',
   });
 });
@@ -62,7 +62,7 @@ test('SNAPSHOT', () => {
 test('GoodCIDRs', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'GoodCIDRs', {
-    ...stackProps,
+    ...recordingStackProps,
     sipRecCidrs: '198.51.100.0/27,198.51.100.128/28',
   });
 });
@@ -71,7 +71,7 @@ test('TooManyCIDRs', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'TooManyCIDRs', {
-      ...stackProps,
+      ...recordingStackProps,
       sipRecCidrs:
         '198.51.100.0/27,198.51.100.128/28,198.51.100.0/27,198.51.100.128/28,198.51.100.0/27,198.51.100.128/28,198.51.100.0/27,198.51.100.128/28,198.51.100.0/27,198.51.100.128/28,198.51.100.0/27,198.51.100.128/28',
     });
@@ -82,7 +82,7 @@ test('PrivateCIDR', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'PrivateCIDR', {
-      ...stackProps,
+      ...recordingStackProps,
       sipRecCidrs: '10.10.10.10/32',
     });
   }).toThrow(
@@ -94,7 +94,7 @@ test('BADCIDR', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'BadCIDR', {
-      ...stackProps,
+      ...recordingStackProps,
       sipRecCidrs: 'bad',
     });
   }).toThrow('Invalid CIDR block: bad');
@@ -104,7 +104,7 @@ test('BadLogLevel', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'BadLogLevel', {
-      ...stackProps,
+      ...recordingStackProps,
       logLevel: 'bad',
     });
   }).toThrow('LOG_LEVEL must be ERROR, WARN, DEBUG, or INFO');
@@ -114,7 +114,7 @@ test('BadRemovalPolicy', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'BadRemovalPolicy', {
-      ...stackProps,
+      ...recordingStackProps,
       removalPolicy: 'bad',
     });
   }).toThrow('REMOVAL_POLICY must be DESTROY, SNAPSHOT, or RETAIN');
@@ -124,7 +124,7 @@ test('BadBuildAsterisk', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'BadBuildAsterisk', {
-      ...stackProps,
+      ...recordingStackProps,
       buildAsterisk: 'bad',
     });
   }).toThrow('BUILD_ASTERISK must be true or false');
@@ -134,7 +134,7 @@ test('AsteriskAndSIPREC', () => {
   expect(() => {
     const app = new App();
     new AmazonChimeSDKCallAnalyticsRecording(app, 'AsteriskAndSIPREC', {
-      ...stackProps,
+      ...recordingStackProps,
       buildAsterisk: 'true',
       sipRecCidrs: '198.51.100.0/27',
     });

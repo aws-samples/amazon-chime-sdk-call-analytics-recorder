@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/indent */
 /* eslint-disable import/no-extraneous-dependencies */
+import * as os from 'os';
 import path from 'path';
 import { RemovalPolicy, Stack } from 'aws-cdk-lib';
 import {
@@ -40,12 +41,22 @@ interface ECSResourcesProps {
   voiceConnector: ChimeVoiceConnector;
   logLevel: string;
 }
+
 export class ECSResources extends Construct {
   public task: FargateTaskDefinition;
   public cluster: Cluster;
 
   constructor(scope: Construct, id: string, props: ECSResourcesProps) {
     super(scope, id);
+    let deployArch: CpuArchitecture;
+    const cpuArch = os.arch();
+    if (cpuArch === 'arm64') {
+      // Deployment platform is arm64
+      deployArch = CpuArchitecture.ARM64;
+    } else {
+      deployArch = CpuArchitecture.X86_64;
+      // Deployment platform is amd64
+    }
 
     this.cluster = new Cluster(this, 'Cluster', {
       vpc: props.vpc,
@@ -130,7 +141,7 @@ export class ECSResources extends Construct {
       cpu: 1024,
       runtimePlatform: {
         operatingSystemFamily: OperatingSystemFamily.LINUX,
-        cpuArchitecture: CpuArchitecture.ARM64,
+        cpuArchitecture: deployArch,
       },
       taskRole: asteriskTaskRole,
       volumes: [
