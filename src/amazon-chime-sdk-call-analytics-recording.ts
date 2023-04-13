@@ -14,7 +14,8 @@ import {
   SummarizationStateMachineResources,
   SummarizationDatabaseResources,
   SummarizationLambdaResources,
-  envValidator,
+  recorderEnvValidator,
+  summarizerEnvValidator,
 } from './';
 
 config();
@@ -38,7 +39,7 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
   ) {
     super(scope, id, props);
 
-    envValidator(props);
+    recorderEnvValidator(props);
 
     const vcResources = new VCResources(this, 'VCResources', {
       buildAsterisk: props.buildAsterisk,
@@ -136,6 +137,7 @@ export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
   ) {
     super(scope, id, props);
 
+    summarizerEnvValidator(props);
     const summarizationDatabaseResources = new SummarizationDatabaseResources(
       this,
       'RecordingDatabaseResources',
@@ -205,13 +207,13 @@ const amazonChimeSDKCallAnalyticsRecording =
 
 const summarizationStackProps = {
   recordingBucket: amazonChimeSDKCallAnalyticsRecording.recordingBucket,
-  modelName: process.env.MODEL_NAME || 'cohere-gpt-medium',
+  modelName: process.env.MODEL_NAME || 'deployed-cohere-gpt-medium',
   logLevel: process.env.LOG_LEVEL || 'INFO',
-  endpointName: process.env.ENDPOINT_NAME || 'cohere-gpt-medium',
+  endpointName: process.env.ENDPOINT_NAME || 'deployed-cohere-gpt-medium',
   cohereInstanceType: process.env.COHERE_INSTANCE_TYPE || 'ml.g5.xlarge',
   modelPackageArn:
     process.env.MODEL_PACKAGE_ARN ||
-    'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-4-825b877abfd53d7ca65fd7b4b262c421',
+    'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
 };
 
 new AmazonChimeSDKCallAnalyticsSummarization(
