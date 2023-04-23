@@ -312,7 +312,7 @@ export class SummarizationLambdaResources extends Construct {
         LOG_LEVEL: props.logLevel,
         ENDPOINT_NAME: props.endpointName,
         MODEL_PACKAGE_ARN: props.modelPackageArn,
-        SAGEMAKER_ROLE: sageMakerRole.roleName,
+        SAGEMAKER_ROLE: sageMakerRole.roleArn,
         COHERE_INSTANCE_TYPE: props.cohereInstanceType,
         MODEL_NAME: props.modelName,
       },

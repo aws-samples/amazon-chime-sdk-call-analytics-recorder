@@ -1,11 +1,12 @@
-from cohere_sagemaker import Client
-import boto3
 import json
-import string
-import os
 import logging
+import os
+import string
 import uuid
 from datetime import datetime, timedelta
+
+import boto3
+from cohere_sagemaker import Client
 
 s3 = boto3.client('s3')
 dynamodb_client = boto3.client('dynamodb')
