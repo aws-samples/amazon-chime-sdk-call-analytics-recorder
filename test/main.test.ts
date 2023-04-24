@@ -150,6 +150,16 @@ test('BadRemovalPolicy', () => {
   }).toThrow('REMOVAL_POLICY must be DESTROY, SNAPSHOT, or RETAIN');
 });
 
+test('BadSelectiveRecording', () => {
+  expect(() => {
+    const app = new App();
+    new AmazonChimeSDKCallAnalyticsRecording(app, 'BadRemovalPolicy', {
+      ...recordingStackProps,
+      selectiveRecording: 'bad',
+    });
+  }).toThrow('SELECTIVE_RECORDING must be true or false');
+});
+
 test('BadBuildAsterisk', () => {
   expect(() => {
     const app = new App();

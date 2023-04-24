@@ -38,7 +38,7 @@ export class VCResources extends Construct {
         dataRetention: 24,
         notificationTargets: [NotificationTargetType.EVENTBRIDGE],
         mediaInsightsConfiguration: {
-          disabled: !Boolean(props.selectiveRecording),
+          disabled: Boolean(props.selectiveRecording),
           configurationArn:
             props.mediaInsightsConfiguration
               .mediaInsightsPipelineConfigurationArn,

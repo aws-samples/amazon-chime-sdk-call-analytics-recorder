@@ -118,7 +118,7 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
       });
     }
 
-    if (props.selectiveRecording !== 'true') {
+    if (props.selectiveRecording === 'true') {
       const dataBaseResources = new RecordingDatabaseResources(
         this,
         'DatabaseResources',
@@ -188,7 +188,7 @@ export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
         cohereInstanceType: props.cohereInstanceType,
         modelName: props.modelName,
         recordingBucketPrefix:
-          props.selectiveRecording === 'true'
+          props.selectiveRecording === 'false'
             ? props.voiceConnector.voiceConnectorId
             : props.recordingBucketPrefix,
       },

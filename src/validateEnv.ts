@@ -27,6 +27,15 @@ export function recorderEnvValidator(
     }
   }
 
+  if (props.selectiveRecording) {
+    if (
+      props.selectiveRecording.toLowerCase() !== 'true' &&
+      props.selectiveRecording.toLowerCase() !== 'false'
+    ) {
+      throw new Error('SELECTIVE_RECORDING must be true or false');
+    }
+  }
+
   if (props.logLevel) {
     if (
       props.logLevel.toLowerCase() !== 'error' &&
