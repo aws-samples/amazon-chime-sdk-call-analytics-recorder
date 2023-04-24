@@ -1,14 +1,13 @@
 [tool.poetry]
-name = "startCapture"
+name = "boto3layer"
 version = "0.1.0"
 description = ""
 authors = ["Court Schuett <schuettc@amazon.com>"]
-license = "MIT-0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.9.16"
-boto3 = "^1.26.98"
+python = "^3.9"
+boto3 = "^1.26.108"
 
 
 [build-system]

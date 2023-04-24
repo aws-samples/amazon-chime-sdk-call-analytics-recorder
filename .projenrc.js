@@ -34,8 +34,16 @@ const common_exclude = [
   '.DS_Store',
 ];
 
-project.addTask('launch', {
-  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --require-approval never',
+project.addTask('launchAll', {
+  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --all --require-approval never',
+});
+
+project.addTask('launchRecorder', {
+  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-recording --require-approval never',
+});
+
+project.addTask('launchSummarizer', {
+  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-summarization --require-approval never',
 });
 
 project.gitignore.exclude(...common_exclude);

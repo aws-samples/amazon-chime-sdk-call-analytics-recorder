@@ -9,7 +9,7 @@ import {
 
 import { Construct } from 'constructs';
 
-export class DatabaseResources extends Construct {
+export class RecordingDatabaseResources extends Construct {
   public callTable: Table;
 
   constructor(scope: Construct, id: string) {
@@ -23,6 +23,25 @@ export class DatabaseResources extends Construct {
       sortKey: {
         name: 'is_caller',
         type: AttributeType.STRING,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+      encryption: TableEncryption.AWS_MANAGED,
+      timeToLiveAttribute: 'TTL',
+      billingMode: BillingMode.PAY_PER_REQUEST,
+    });
+  }
+}
+
+export class SummarizationDatabaseResources extends Construct {
+  public statusTable: Table;
+
+  constructor(scope: Construct, id: string) {
+    super(scope, id);
+
+    this.statusTable = new Table(this, 'statusTable', {
+      partitionKey: {
+        name: 'summarization_time',
+        type: AttributeType.NUMBER,
       },
       removalPolicy: RemovalPolicy.DESTROY,
       encryption: TableEncryption.AWS_MANAGED,

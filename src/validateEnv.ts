@@ -1,10 +1,15 @@
-import { AmazonChimeSDKCallAnalyticsRecordingStackProps } from './amazon-chime-sdk-call-analytics-recording';
+import {
+  AmazonChimeSDKCallAnalyticsRecordingStackProps,
+  AmazonChimeSDKCallAnalyticsSummarizationProps,
+} from './amazon-chime-sdk-call-analytics-recording';
+import { InstanceTypes, ModelArns } from './cohereInput';
 
 const cidrRegex = /^(?:\d{1,3}\.){3}\d{1,3}\/(3[0-2]|[2-9]|[1-2][0-9])$/;
 const rfc1918Regex =
   /^10(\.\d{1,3}){3}|^172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|^192\.168(\.\d{1,3}){2}$/;
+const s3BucketNameRegex = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 
-export function envValidator(
+export function recorderEnvValidator(
   props: AmazonChimeSDKCallAnalyticsRecordingStackProps,
 ) {
   if (props.buildAsterisk) {
@@ -13,6 +18,21 @@ export function envValidator(
       props.buildAsterisk.toLowerCase() !== 'false'
     ) {
       throw new Error('BUILD_ASTERISK must be true or false');
+    }
+  }
+
+  if (props.outputBucket) {
+    if (!s3BucketNameRegex.test(props.outputBucket)) {
+      throw new Error('OUTPUT_BUCKET must be a valid S3 bucket name');
+    }
+  }
+
+  if (props.selectiveRecording) {
+    if (
+      props.selectiveRecording.toLowerCase() !== 'true' &&
+      props.selectiveRecording.toLowerCase() !== 'false'
+    ) {
+      throw new Error('SELECTIVE_RECORDING must be true or false');
     }
   }
 
@@ -62,4 +82,34 @@ export function envValidator(
   }
 
   return true;
+}
+
+export function summarizerEnvValidator(
+  props: AmazonChimeSDKCallAnalyticsSummarizationProps,
+) {
+  if (!Object.values(ModelArns).includes(props.modelPackageArn as ModelArns)) {
+    throw new Error(
+      'Invalid Model Arn.  Valid Model Arns are: ' + Object.values(ModelArns),
+    );
+  }
+
+  if (
+    !Object.values(InstanceTypes).includes(
+      props.cohereInstanceType as InstanceTypes,
+    )
+  ) {
+    throw new Error(
+      'Invalid Instance Type.  Valid types are: ' +
+        Object.values(InstanceTypes),
+    );
+  }
+
+  if (props.selectiveRecording) {
+    if (
+      props.selectiveRecording.toLowerCase() !== 'true' &&
+      props.selectiveRecording.toLowerCase() !== 'false'
+    ) {
+      throw new Error('SELECTIVE_RECORDING must be true or false');
+    }
+  }
 }

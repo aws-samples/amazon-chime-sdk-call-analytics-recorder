@@ -1,10 +1,12 @@
-FROM andrius/asterisk
-RUN apk --no-cache add curl jq aws-cli
+FROM --platform=$BUILDPLATFORM andrius/asterisk
+RUN apk --no-cache add curl jq aws-cli curl-dev
 RUN aws --version
 ENV VOICE_CONNECTOR=${VOICE_CONNECTOR}
 ENV PHONE_NUMBER=${PHONE_NUMBER1}
 ENV CLUSTER_NAME=${CLUSTER_NAME}
 COPY config/* /etc/asterisk
+RUN mkdir /tmp/sounds
+COPY audio/* /tmp/sounds
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 EXPOSE 5060/udp 

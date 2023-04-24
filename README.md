@@ -6,20 +6,12 @@ This demo will configure and deploy an example of a call recording application u
 
 Amazon Chime SDK call analytics allows you to develop low-code solutions for real-time audio workloads. In this example, we will be creating a mechanism to record calls using an [Amazon Chime Voice Connector](https://docs.aws.amazon.com/chime-sdk/latest/ag/voice-connectors.html) as either a Public Switched Telephone Network (PSTN) Session Initiation Protocol (SIP) trunk, or as a SIPREC SIP trunk. If you don't have a device capable of generating SIPREC traffic, you can still deploy this demo and an Asterisk server will be deployed so that you can make calls to that.
 
-#### SIPREC Option
-
-![SIPRECOverview](images/CallAnalyticsRecording-SIPREC.png)
-
-#### Asterisk Option
-
-![AsteriskOverview](images/CallAnalyticsRecording-Asterisk.png)
-
 ## Prerequisites
 
 - AWS Account and credentials
 - Basic understanding of SIP telephony
 - Node >v16
-- Docker running
+- Docker running (for some configurations)
 
 ### Optional
 
@@ -28,11 +20,63 @@ Amazon Chime SDK call analytics allows you to develop low-code solutions for rea
 
 ## How It Works
 
-### Streaming Configuration
+This demo includes both an automatic and selective recording option. With automatic recording, all calls to the Amazon Chime SDK Voice Connector will be recorded and stored in the designated Amazon Simple Storage Service (S3) Bucket. These objects will be stored with a prefix of the Amazon Chime SDK Voice Connector ID. No other compute is required to use this option.
 
-This demo will deploy and configure an Amazon Chime SDK voice connector to enable Streaming with a notification target of `EventBridge` and 24 hours of data retention. These settings will allow us to capture the Real-time Transport Protocol (RTP) packets and store them in an Amazon Simple Storage Service (S3) Bucket.
+### Automatic Recording Configuration
 
-![StreamingConfiguration](images/StreamingConfiguration.png)
+To enable automatic call recording, you must:
+
+- Create an S3 bucket
+- Create an AWS Identity and Access Management (IAM) role
+- Create an Amazon Chime SDK call analytics configuration using the previously created bucket and role
+- Create an Amazon Chime SDK Voice Connector
+- Enable streaming on the Amazon Chime SDK Voice Connector
+- Associate the Amazon Chime SDK call analytics configuration with the previously created Amazon Chime SDK Voice Connector
+
+Deploying this demo will complete all of these steps for you.
+
+#### Call analytics configuration
+
+![S3RecordingSinkConfiguration](images/S3RecordingSinkConfiguration.png)
+
+In this example, we have created an Amazon Chime SDK Call analytics configuration with recording enabled, an AWS Identity and Access Management (IAM) role associated with it, and an S3 bucket location that will be used to store the objects.
+
+#### Streaming Configuration
+
+![AutomaticRecordingStreamingConfiguration](images/AutomaticRecordingStreamingConfiguration.png)
+
+Next, we will deploy and configure an Amazon Chime SDK voice connector with Streaming enabled, a notification target of `EventBridge`, 24 hours of data retention, and the previously created Call analytics configuration associated. These settings will allow us to capture the Real-time Transport Protocol (RTP) packets and store them in an S3 bucket without any other compute required.
+
+#### Voice Connector Options
+
+This demo can be deployed using an Amazon Chime SDK Voice Connector configured to use either SIPREC or with PSTN access. If you have a device capable of generating SIPREC data, you can enable this option by configuring the `.env` file with these options:
+
+```bash
+BUILD_ASTERISK='false'
+SIPREC_CIDRS='192.0.2.0/28,98.51.100.0/30'
+```
+
+Replace the CIDR addresses with your SIP endpoint's public IP addresses. More information on configuring your SIP endpoint can be found [here](https://aws.amazon.com/chime/chime-sdk/resources/) in the `Configuration Guides` section.
+
+If you do not have a device capable of generating SIPREC traffic, you can use the included Asterisk PBX to simulate traffic. To use this option, configuring the `.env` file with these options:
+
+```bash
+BUILD_ASTERISK='true'
+```
+
+> **_NOTE:_** This Asterisk will be run using AWS Fargate and will incur continuous charges. Be sure to stop this service when not in use. Commands for this are included in the CDK Output.
+
+#### SIPREC Option
+
+![SIPRECOverview](images/CallAnalyticsRecording-AutomaticSIPREC.png)
+
+#### Asterisk Option
+
+![AsteriskOverview](images/CallAnalyticsRecording-AutomaticAsterisk.png)
+
+### Selective Recording
+
+Selective recording uses many of the same configurations as above with a few exceptions and additional requirements. When using selective recording, the Amazon Chime SDK call analytics configuration is not associated with the Amazon Chime SDK Voice Connector. Instead, an API request is made to start the Amazon Chime SDK media insights pipeline on a case by case basis. This request requires additional compute to coordinate. In this example, we will use an AWS Lambda function triggered by an Amazon EventBridge notification to start that process.
 
 ### EventBridge Notification
 
@@ -168,7 +212,31 @@ response = media_pipelines.create_media_insights_pipeline(
 
 Using the stream ARNs, start time, and end time, we can call [`create_media_insights_pipeline`](https://boto3.amazonaws.com/v1/documentation/api/1.26.101/reference/services/chime-sdk-media-pipelines/client/create_media_insights_pipeline.html). In this case, we are referencing a `MediaInsightsPipelineConfigurationArn` that was created as part of this demo as well as the S3 Bucket referenced in that configuration. After the call is completed and we start this process, the media insight pipeline will consume the RTP packets from the KVS stream and put the file in the S3 bucket. This is why the data retention of the KVS stream must be set to a length greater than the longest possible call duration.
 
-![S3RecordingSinkConfiguration](images/S3RecordingSinkConfiguration.png)
+### Adding metadata
+
+Additionally, we can add additional information to either the bucket we are putting the objects to, or a different location. In this demo, we are simply writing a JSON file to the same bucket with information from the call:
+
+```python
+def write_call_details_to_s3(event):
+    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + event['detail']['callId'] + '.json'
+    data = {
+        'account': event['account'],
+        'callId': event['detail']['callId'],
+        'transactionId': event['detail']['transactionId'],
+        'direction': event['detail']['direction'],
+        'fromNumber': event['detail']['fromNumber'],
+        'toNumber': event['detail']['toNumber'],
+        'voiceConnectorId': event['detail']['voiceConnectorId'],
+        'startTime': event['detail']['startTime'],
+        'endTime': event['detail']['endTime']
+    }
+    json_data = json.dumps(data)
+    response = s3_client.put_object(
+        Bucket=RECORDING_BUCKET,
+        Key=destination,
+        Body=json_data
+    )
+```
 
 ## Testing It Out
 
@@ -192,19 +260,20 @@ Several options are available as part of the deployment and can be configured in
 - SIPREC_CIDRS - These will be used if you are not deploying an Asterisk server and instead want to use their existing telephony to generate SIPREC traffic. They should use a comma separated string format: `'198.51.100.0/27','198.51.100.128/27'`.
 - LOG_LEVEL - Used to assist with debugging in the Lambda function and Asterisk instance. 'INFO' | 'DEBUG' | 'WARN' | 'ERROR'. Defaults to 'INFO'.
 - REMOVAL_POLICY - Used to control the removal policy of the new S3 Bucket that is created. Valid options: 'DESTROY' | 'RETAIN' | 'SNAPSHOT'. Defaults to 'DESTROY'
+- SELECTIVE_RECORDING - Used to control if automatic or selective recording is used. Defaults to 'false'.
 
 ### To Deploy
 
 This demo will use an AWS Cloud Development Kit (AWS CDK) to deploy. To start the deployment:
 
 ```
-yarn launch
+yarn launchRecorder
 ```
 
 When finished, be sure to destroy any unneeded resources. You can destroy the entire demo:
 
 ```
-yarn cdk destroy
+yarn cdk destroy amazon-chime-sdk-call-analytics-recording
 ```
 
 If the default value for `REMOVAL_POLICY` is used, the output bucket will be destroyed and those files lost.
@@ -214,6 +283,10 @@ If the default value for `REMOVAL_POLICY` is used, the output bucket will be des
 A complementary demo that will work with this demo is the [Amazon Transcribe Post Call Analytics (PCA)](https://github.com/aws-samples/amazon-transcribe-post-call-analytics) demo. The PCA demo can be deployed to the same account as this demo and the output bucket of this demo can be used as the input bucket of the PCA demo. When used together like this, the files created by this demo will trigger the PCA demo to begin processing the file with [Amazon Transcribe](https://aws.amazon.com/transcribe/) or [Amazon Transcribe Call Analytics](https://aws.amazon.com/transcribe/call-analytics/).
 
 To use this demo with PCA, be sure to set your `.env` variables to include the input bucket from PCA as the `OUTPUT_BUCKET` and use `originalAudio` for `RECORDING_BUCKET_PREFIX`.
+
+## Call Summarization
+
+This demo also includes an automatic call summarization component that can be used to process the recorded files with a large language model to generate insights into the content of that call. Information on that can be found [here](./SUMMARIZATION.md)
 
 ## Additional Notes
 

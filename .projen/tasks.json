@@ -141,11 +141,27 @@
         }
       ]
     },
-    "launch": {
-      "name": "launch",
+    "launchAll": {
+      "name": "launchAll",
       "steps": [
         {
-          "exec": "yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --require-approval never"
+          "exec": "yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --all --require-approval never"
+        }
+      ]
+    },
+    "launchRecorder": {
+      "name": "launchRecorder",
+      "steps": [
+        {
+          "exec": "yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-recording --require-approval never"
+        }
+      ]
+    },
+    "launchSummarizer": {
+      "name": "launchSummarizer",
+      "steps": [
+        {
+          "exec": "yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-summarization --require-approval never"
         }
       ]
     },

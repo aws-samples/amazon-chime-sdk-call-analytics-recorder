@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/indent */
 /* eslint-disable import/no-extraneous-dependencies */
+import * as os from 'os';
 import path from 'path';
 import { RemovalPolicy, Stack } from 'aws-cdk-lib';
 import {
@@ -40,12 +41,22 @@ interface ECSResourcesProps {
   voiceConnector: ChimeVoiceConnector;
   logLevel: string;
 }
+
 export class ECSResources extends Construct {
   public task: FargateTaskDefinition;
   public cluster: Cluster;
+  public service: FargateService;
 
   constructor(scope: Construct, id: string, props: ECSResourcesProps) {
     super(scope, id);
+    let deployArch: CpuArchitecture;
+    const cpuArch = os.arch();
+    /* istanbul ignore next */
+    if (cpuArch === 'arm64') {
+      deployArch = CpuArchitecture.ARM64;
+    } else {
+      deployArch = CpuArchitecture.X86_64;
+    }
 
     this.cluster = new Cluster(this, 'Cluster', {
       vpc: props.vpc,
@@ -60,24 +71,59 @@ export class ECSResources extends Construct {
       ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
     );
 
-    const fileSystem = new FileSystem(this, 'fileSystem', {
-      vpc: props.vpc,
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
+    const asteriskLogsFileSystem = new FileSystem(
+      this,
+      'asteriskLogsFileSystem',
+      {
+        vpc: props.vpc,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    );
 
-    const asteriskAccessPoint = new AccessPoint(this, 'asteriskAccessPoint', {
-      fileSystem: fileSystem,
-      path: '/asteriskLogs',
-      posixUser: {
-        uid: '1000',
-        gid: '1000',
+    const asteriskAudioFileSystem = new FileSystem(
+      this,
+      'asteriskAudioFileSystem',
+      {
+        vpc: props.vpc,
+        removalPolicy: RemovalPolicy.DESTROY,
       },
-      createAcl: {
-        ownerGid: '1000',
-        ownerUid: '1000',
-        permissions: '0750',
+    );
+
+    const asteriskLogsAccessPoint = new AccessPoint(
+      this,
+      'asteriskLogsAccessPoint',
+      {
+        fileSystem: asteriskLogsFileSystem,
+        path: '/asteriskLogs',
+        posixUser: {
+          uid: '1000',
+          gid: '1000',
+        },
+        createAcl: {
+          ownerGid: '1000',
+          ownerUid: '1000',
+          permissions: '0750',
+        },
       },
-    });
+    );
+
+    const asteriskAudioAccessPoint = new AccessPoint(
+      this,
+      'asteriskAudioAccessPoint',
+      {
+        fileSystem: asteriskAudioFileSystem,
+        path: '/asteriskAudio',
+        posixUser: {
+          uid: '1000',
+          gid: '1000',
+        },
+        createAcl: {
+          ownerGid: '1000',
+          ownerUid: '1000',
+          permissions: '0750',
+        },
+      },
+    );
 
     const asteriskTaskRole = new Role(this, 'asteriskTaskRole', {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -85,7 +131,10 @@ export class ECSResources extends Construct {
         keysPolicy: new PolicyDocument({
           statements: [
             new PolicyStatement({
-              resources: [fileSystem.fileSystemArn],
+              resources: [
+                asteriskLogsFileSystem.fileSystemArn,
+                asteriskAudioFileSystem.fileSystemArn,
+              ],
               actions: [
                 'elasticfilesystem:ClientMount',
                 'elasticfilesystem:ClientWrite',
@@ -130,17 +179,28 @@ export class ECSResources extends Construct {
       cpu: 1024,
       runtimePlatform: {
         operatingSystemFamily: OperatingSystemFamily.LINUX,
-        cpuArchitecture: CpuArchitecture.ARM64,
+        cpuArchitecture: deployArch,
       },
       taskRole: asteriskTaskRole,
       volumes: [
         {
           name: 'asteriskLogs',
           efsVolumeConfiguration: {
-            fileSystemId: fileSystem.fileSystemId,
+            fileSystemId: asteriskLogsFileSystem.fileSystemId,
             transitEncryption: 'ENABLED',
             authorizationConfig: {
-              accessPointId: asteriskAccessPoint.accessPointId,
+              accessPointId: asteriskLogsAccessPoint.accessPointId,
+              iam: 'ENABLED',
+            },
+          },
+        },
+        {
+          name: 'asteriskAudio',
+          efsVolumeConfiguration: {
+            fileSystemId: asteriskAudioFileSystem.fileSystemId,
+            transitEncryption: 'ENABLED',
+            authorizationConfig: {
+              accessPointId: asteriskAudioAccessPoint.accessPointId,
               iam: 'ENABLED',
             },
           },
@@ -173,7 +233,7 @@ export class ECSResources extends Construct {
       readOnly: false,
     });
 
-    const service = new FargateService(this, 'FargateService', {
+    this.service = new FargateService(this, 'FargateService', {
       cluster: this.cluster,
       taskDefinition: this.task,
       assignPublicIp: true,
@@ -182,6 +242,11 @@ export class ECSResources extends Construct {
       enableExecuteCommand: true,
     });
 
-    fileSystem.connections.allowDefaultPortFrom(service.connections);
+    asteriskLogsFileSystem.connections.allowDefaultPortFrom(
+      this.service.connections,
+    );
+    asteriskAudioFileSystem.connections.allowDefaultPortFrom(
+      this.service.connections,
+    );
   }
 }

@@ -4,10 +4,10 @@ import decimal
 import os
 import datetime
 import boto3
-
 dynamodb = boto3.client('dynamodb')
 media_pipelines = boto3.client("chime-sdk-media-pipelines")
-
+# Initialize the S3 client
+s3_client = boto3.client('s3')
 CALL_TABLE = os.environ['CALL_TABLE']
 RECORDING_BUCKET = os.environ['RECORDING_BUCKET']
 try:
@@ -19,7 +19,6 @@ except BaseException:
     RECORDING_BUCKET_PREFIX = ''
 MEDIA_INSIGHT_PIPELINE_ARN = os.environ['MEDIA_INSIGHT_PIPELINE_ARN']
 VOICECONNECTOR_ID = os.environ['VOICECONNECTOR_ID']
-
 # Set LOG_LEVEL using environment variable, fallback to INFO if not present
 logger = logging.getLogger()
 try:
@@ -29,26 +28,19 @@ try:
 except BaseException:
     LOG_LEVEL = 'INFO'
 logger.setLevel(LOG_LEVEL)
-
-
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
             return int(obj)
         return super(DecimalEncoder, self).default(obj)
-
-
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
             return obj.strftime("%Y-%m-%d %H:%M:%S")
         return json.JSONEncoder.default(self, obj)
-
-
 def handler(event, context):
     global LOG_PREFIX
     LOG_PREFIX = 'EventBridge Notification: '
-
     if 'detail-type' in event:
         if event['detail-type'] == 'AWS API Call via CloudTrail':
             logger.info('%s Event Name: %s | Event Source: %s', LOG_PREFIX, event['detail']['eventName'], event['detail']['eventSource'])
@@ -93,6 +85,8 @@ def handler(event, context):
                                 "RecordingFileFormat": "Wav"
                             }
                         )
+                        # Call the function with the JSON object and S3 client
+                        write_call_details_to_s3(event)
                         logger.info('%s  %s', LOG_PREFIX, json.dumps(response,  cls=DateTimeEncoder, indent=4))
         elif event['detail-type'] == 'Media Insights State Change':
             if "failureReason" in event['detail']:
@@ -128,3 +122,25 @@ def get_streams(call_id):
             }
         )
     return response['Items'] if 'Items' in response else None
+
+
+def write_call_details_to_s3(event):
+    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + event['detail']['callId'] + '.json'
+    data = {
+        'account': event['account'],
+        'callId': event['detail']['callId'],
+        'transactionId': event['detail']['transactionId'],
+        'direction': event['detail']['direction'],
+        'fromNumber': event['detail']['fromNumber'],
+        'toNumber': event['detail']['toNumber'],
+        'voiceConnectorId': event['detail']['voiceConnectorId'],
+        'startTime': event['detail']['startTime'],
+        'endTime': event['detail']['endTime']
+    }
+    json_data = json.dumps(data)
+    response = s3_client.put_object(
+        Bucket=RECORDING_BUCKET,
+        Key=destination,
+        Body=json_data
+    )
+    return response
