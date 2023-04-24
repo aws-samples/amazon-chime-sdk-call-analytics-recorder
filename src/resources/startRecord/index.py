@@ -99,6 +99,8 @@ def handler(event, context):
         else:
             logger.info('%s Detail Type: %s', LOG_PREFIX, event['detail-type'])
             logger.debug('%s  %s', LOG_PREFIX, json.dumps(event,  cls=DecimalEncoder, indent=4))
+
+
 def put_item(call_id, stream_arn, is_caller, start_time):
     dynamodb.put_item(
         TableName=CALL_TABLE,
@@ -109,6 +111,8 @@ def put_item(call_id, stream_arn, is_caller, start_time):
             'start_time': {'N': str(start_time)}
             }
     )
+
+
 def get_streams(call_id):
     response = dynamodb.query(
         TableName=CALL_TABLE,
@@ -118,32 +122,22 @@ def get_streams(call_id):
             }
         )
     return response['Items'] if 'Items' in response else None
+
+
 def write_call_details_to_s3(event):
-    # Extract relevant fields from the JSON object
-    account = event['account']
-    call_id = event['detail']['callId']
-    direction = event['detail']['direction']
-    from_number = event['detail']['fromNumber']
-    to_number = event['detail']['toNumber']
-    voice_connector_id = event['detail']['voiceConnectorId']
-    start_time = event['detail']['startTime']
-    end_time = event['detail']['endTime']
-    # Construct the S3 object key using the specified format
-    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + call_id + '.json'
-    # Construct the data to be written to the JSON file
+    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + event['detail']['callId'] + '.json'
     data = {
-        'account': account,
-        'callId': call_id,
-        'direction': direction,
-        'fromNumber': from_number,
-        'toNumber': to_number,
-        'voiceConnectorId': voice_connector_id,
-        'startTime': start_time,
-        'endTime': end_time
+        'account': event['account'],
+        'callId': event['detail']['callId'],
+        'transactionId': event['detail']['transactionId'],
+        'direction': event['detail']['direction'],
+        'fromNumber': event['detail']['fromNumber'],
+        'toNumber': event['detail']['toNumber'],
+        'voiceConnectorId': event['detail']['voiceConnectorId'],
+        'startTime': event['detail']['startTime'],
+        'endTime': event['detail']['endTime']
     }
-    # Convert the data to a JSON string
     json_data = json.dumps(data)
-    # Write the JSON string to the S3 bucket
     response = s3_client.put_object(
         Bucket=RECORDING_BUCKET,
         Key=destination,

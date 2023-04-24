@@ -113,6 +113,7 @@ interface SummarizationLambdaResourcesProps {
   logLevel: string;
   cohereInstanceType: string;
   modelName: string;
+  recordingBucketPrefix: string;
 }
 
 export class SummarizationLambdaResources extends Construct {
@@ -160,11 +161,19 @@ export class SummarizationLambdaResources extends Construct {
     });
 
     props.recordingBucket.grantReadWrite(startTranscribeLambda);
-    props.recordingBucket.addEventNotification(
-      EventType.OBJECT_CREATED,
-      new LambdaDestination(startTranscribeLambda),
-      { prefix: 'originalAudio' },
-    );
+
+    if (props.recordingBucketPrefix) {
+      props.recordingBucket.addEventNotification(
+        EventType.OBJECT_CREATED,
+        new LambdaDestination(startTranscribeLambda),
+        { prefix: props.recordingBucketPrefix },
+      );
+    } else {
+      props.recordingBucket.addEventNotification(
+        EventType.OBJECT_CREATED,
+        new LambdaDestination(startTranscribeLambda),
+      );
+    }
 
     const sageMakerRole = new Role(this, 'sagemakerRole', {
       assumedBy: new ServicePrincipal('sagemaker.amazonaws.com'),

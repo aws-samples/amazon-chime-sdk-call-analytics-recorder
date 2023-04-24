@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import boto3
 
@@ -40,7 +41,7 @@ def handler(event, context):
         return
 
     # Set the name of the transcription job
-    job_name = os.path.splitext(os.path.basename(key))[0]
+    job_name = re.sub(r'[^a-zA-Z0-9-_]', '', os.path.splitext(os.path.basename(key))[0].replace(' ', '_'))
 
     # Set the output path for the transcription results
     output_key =  OUTPUT_BUCKET_PREFIX  + job_name + '.json'

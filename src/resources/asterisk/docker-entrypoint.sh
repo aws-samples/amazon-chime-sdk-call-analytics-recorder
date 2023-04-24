@@ -32,6 +32,9 @@ echo "VOICE_CONNECTOR: ${VOICE_CONNECTOR}"
 aws chime put-voice-connector-origination --voice-connector-id ${VOICE_CONNECTOR} --origination '{"Routes": [{"Host": "'${PUBLIC_IP}'","Port": 5060,"Protocol": "UDP","Priority": 1,"Weight": 1}],"Disabled": false}'
 aws chime put-voice-connector-termination --voice-connector-id ${VOICE_CONNECTOR} --termination '{"CpsLimit": 1, "CallingRegions": ["US"], "CidrAllowedList": ["'${PUBLIC_IP}'/32"], "Disabled": false}'
 
+cp /tmp/sounds/* /var/lib/asterisk/sounds
+apk add asterisk-sounds-en
+
 if [ "${ASTERISK_UID}" != "" ] && [ "${ASTERISK_GID}" != "" ]; then
   # recreate user and group for asterisk
   # if they've sent as env variables (i.e. to macth with host user to fix permissions for mounted folders

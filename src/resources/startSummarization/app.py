@@ -4,7 +4,6 @@ import os
 import string
 import uuid
 from datetime import datetime, timedelta
-
 import boto3
 from cohere_sagemaker import Client
 
@@ -20,20 +19,21 @@ except BaseException:
     LOG_LEVEL = 'INFO'
 logger.setLevel(LOG_LEVEL)
 
-DEFAULT_QUESTION = "What is the customer calling about and what are the next steps?"
-SUMMARY_QUESTION = DEFAULT_QUESTION[:]
+try:
+    SUMMARY_QUESTION = os.environ['SUMMARY_QUESTION']
+except BaseException:
+    SUMMARY_QUESTION = "What is the customer calling about and what are the next steps?"
 ENDPOINT_NAME = os.environ['ENDPOINT_NAME']
 MODEL_PACKAGE_ARN= os.environ['MODEL_PACKAGE_ARN']
+MODEL_NAME = os.environ['MODEL_NAME']
 SAGEMAKER_ROLE= os.environ['SAGEMAKER_ROLE']
 OUTPUT_BUCKET= os.environ['OUTPUT_BUCKET']
 OUTPUT_BUCKET_PREFIX= os.environ['OUTPUT_BUCKET_PREFIX']
 STATUS_TABLE = os.environ['STATUS_TABLE']
 
-
 co = Client(endpoint_name=ENDPOINT_NAME)
 
-
-## 
+##
 # Break the transcription into dialogue chunks
 def chunk_transcription(transcript):
     """
@@ -47,7 +47,7 @@ def chunk_transcription(transcript):
     words = transcript['results']['items']
     punctuation = set(string.punctuation)
     punctuation.add('')
-    
+
     part_template = {
         "speaker_label": -1,
         "words": ''
@@ -60,24 +60,25 @@ def chunk_transcription(transcript):
             if part['speaker_label']!= -1: 
                 parts.append(part)
             part = part_template.copy()
-            
+
         part['speaker_label'] = word['speaker_label']
         w = word['alternatives'][0]['content']
         if len(part['words'])>0 and w not in punctuation:
             part['words'] += ' '
         part['words'] += w
-    
+
     parts.append(part)
     return parts
 
-# Set Speaker names
-def rename_speakers(chunks):
-    speaker_mapping = {}
-    for i in range(20):
-        speaker_mapping["spk_%i" %i] = "Speaker %i" %i
-    for c in chunks:
-        c['speaker_label'] = speaker_mapping[c['speaker_label']]
-    return chunks
+# # Set Speaker names
+# def rename_speakers(chunks):
+#     speaker_mapping = {}
+#     for i in range(20):
+#         speaker_mapping["spk_%i" %i] = "Speaker %i" %i
+#     for c in chunks:
+#         c['speaker_label'] = speaker_mapping[c['speaker_label']]
+#     return chunks
+
 
 # This makes speakers more human readable
 def rename_speakers(chunks):
@@ -87,7 +88,7 @@ def rename_speakers(chunks):
     speaker_mapping = {} # if you have a proper speaker_mapping, then replace here
     for i in range(20):
         speaker_mapping["spk_%i" %i] = "Speaker %i" %i
-        
+
     for c in chunks:
         c['speaker_label'] = speaker_mapping[c['speaker_label']]
     return chunks
@@ -97,17 +98,17 @@ def build_lines(chunks):
     lines = []
     for c in chunks:
         lines.append("%s: %s" %(c['speaker_label'], c['words']))
-    
+
     call_part = ''
     for line in lines:
         call_part += line + '\n'
-    
+
     return call_part
 
-# Break call into partitions that 
+# Break call into partitions that
 def partition_call(chunks, max_word_count=1500, overlap_percentage=0.2):
     """
-    Inpts:
+    Inputs:
         chunks- transcription broken into dicts representing a single speaker's chunk
         max_word_count- LLM-defined limits of input. 
                         We use word count here vs token count, assuming 1 word~1 token.
@@ -117,11 +118,9 @@ def partition_call(chunks, max_word_count=1500, overlap_percentage=0.2):
     This breaks the call into partitions that are manageable by the LLM.
     It returns the individual sections that can be attached to a prompt and sent to the LLM.
     """
-    
+
     # Count words in each chunk
     counts = [len(d['words'].split()) for d in chunks]
-    
-    
     part_count = 0 #number of words in current partition
     i, j = 0, 0 #pointers
     partition_ends = [] #start, end of each partition
@@ -134,7 +133,7 @@ def partition_call(chunks, max_word_count=1500, overlap_percentage=0.2):
                 part_count -= counts[i]
         j += 1
     partition_ends.append([i, j])
-    
+
     #with list of partition_ends, build partitions
     partitions = []
     for pe in partition_ends:
@@ -147,19 +146,19 @@ def partition_call(chunks, max_word_count=1500, overlap_percentage=0.2):
 
 ##
 # Build prompt(s)
-def get_call_prompt(lines, question=DEFAULT_QUESTION):
+def get_call_prompt(lines, question=SUMMARY_QUESTION):
     prompt = """Call: 
 %s
 
 %s""" %(lines, question)
     return prompt
 
-def get_call_prompts(partitions, question=DEFAULT_QUESTION):
+def get_call_prompts(partitions, question=SUMMARY_QUESTION):
     prompts = []
     for partition in partitions:
         prompt = get_call_prompt(partition, question)
         prompts.append(prompt)
-    
+
     return prompts
 
 ##
@@ -179,7 +178,7 @@ def get_responses(prompts):
     return cohere_texts
 
 
-def summarize_summaries(summaries, question=DEFAULT_QUESTION):
+def summarize_summaries(summaries, question=SUMMARY_QUESTION):
     
     if len(summaries) == 1:
         return summaries[0], None
@@ -199,45 +198,45 @@ Combine the summaries and answer this question: %s""" %question
     return full_summary, prompt
 
 
-def run_call(transcript, question=DEFAULT_QUESTION, verbose=False):
+def run_call(transcript, question=SUMMARY_QUESTION, verbose=False):
 
     # break call into dialogue lines
     chunks = chunk_transcription(transcript)
     chunks = rename_speakers(chunks)
-    
+
     # break dialogue lines into partitions
     partitions = partition_call(chunks, 1000, 0.3)
     prompts = get_call_prompts(partitions, question)
-    
+
     # Print Option
     if verbose:
         print('Prompt for Partition 1:')
         print(prompts[0])
-              
+
     # Partition Summary
     summaries = get_responses(prompts)
-    
+
     # Combined Summary
     summary, summary_prompt = summarize_summaries(summaries)
-    
+
     # Print Option
     if verbose:
         print('Full Summary:')
         print(summary)
-        
+
     summary_dict = {
             'list_prompt': prompts,
             'summary_prompt': summary_prompt,
             'final_summary': summary,
             'question': question,
-            'model': MODEL,
+            'model_name': MODEL_NAME,
             'model_arn': MODEL_PACKAGE_ARN,
         }
-    
+
     return summary_dict
 
 def prepare_summary(summary_dict, call_metadata=None):
-    result  = { 
+    result  = {
         'time': datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "service-type": "MediaInsights",
         "detail-type": "LargeLanguageModelSummary",
@@ -246,7 +245,7 @@ def prepare_summary(summary_dict, call_metadata=None):
 
     if call_metadata is not None:
         result['metadata'] = call_metadata
-    
+
     return result
 
 def load_transcript(s3_object):
@@ -303,7 +302,6 @@ def handler(event, context):
     summary_event = prepare_summary(summary_dict)
 
     summary_event["summaryEvent"]['prompt_id'] = prompt_id
-    
+
     update_database(prompt_id)
     put_summary(summary_event,prompt_id)
-

@@ -1,5 +1,6 @@
 import { App, Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
 import { IBucket, Bucket } from 'aws-cdk-lib/aws-s3';
+import { ChimeVoiceConnector } from 'cdk-amazon-chime-resources';
 import { Construct } from 'constructs';
 import { config } from 'dotenv';
 import {
@@ -28,9 +29,11 @@ export interface AmazonChimeSDKCallAnalyticsRecordingStackProps
   sipRecCidrs: string;
   logLevel: string;
   removalPolicy: string;
+  selectiveRecording: string;
 }
 export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
   public recordingBucket: IBucket;
+  public voiceConnector: ChimeVoiceConnector;
 
   constructor(
     scope: Construct,
@@ -41,10 +44,37 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
 
     recorderEnvValidator(props);
 
+    if (props.outputBucket === '') {
+      const s3Resources = new S3Resources(this, 'S3Resources', {
+        removalPolicy: props.removalPolicy,
+      });
+      this.recordingBucket = s3Resources.recordingBucket;
+    } else {
+      // istanbul ignore next
+      this.recordingBucket = Bucket.fromBucketName(
+        this,
+        'OutputBucketResource',
+        props.outputBucket,
+      );
+    }
+
+    const mediaPipelineResources = new MediaPipelineResources(
+      this,
+      'MediaPipelineResources',
+      {
+        s3SinkBucket: this.recordingBucket,
+      },
+    );
+
     const vcResources = new VCResources(this, 'VCResources', {
       buildAsterisk: props.buildAsterisk,
       sipRecCidrs: props.sipRecCidrs,
+      selectiveRecording: props.selectiveRecording,
+      mediaInsightsConfiguration:
+        mediaPipelineResources.s3RecordingSinkConfiguration,
     });
+
+    this.voiceConnector = vcResources.voiceConnector;
 
     if (props.buildAsterisk === 'true') {
       const vpcResources = new VPCResources(this, 'VPCResources');
@@ -72,42 +102,37 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
       new CfnOutput(this, 'PhoneNumber', {
         value: vcResources!.phoneNumber!.phoneNumber!,
       });
-    }
 
-    if (props.outputBucket === '') {
-      const s3Resources = new S3Resources(this, 'S3Resources', {
-        removalPolicy: props.removalPolicy,
+      new CfnOutput(this, 'Service', {
+        value: 'SERVICE=' + ecsResources.service.serviceName,
       });
-      this.recordingBucket = s3Resources.recordingBucket;
-    } else {
-      // istanbul ignore next
-      this.recordingBucket = Bucket.fromBucketName(
-        this,
-        'OutputBucketResource',
-        props.outputBucket,
-      );
+
+      new CfnOutput(this, 'DisableService', {
+        value:
+          'aws ecs update-service --cluster $CLUSTER --service $SERVICE --desired-count 0',
+      });
+
+      new CfnOutput(this, 'EnableService', {
+        value:
+          'aws ecs update-service --cluster $CLUSTER --service $SERVICE --desired-count 1',
+      });
     }
 
-    const dataBaseResources = new RecordingDatabaseResources(
-      this,
-      'DatabaseResources',
-    );
-    const mediaPipelineResources = new MediaPipelineResources(
-      this,
-      'MediaPipelineResources',
-      {
-        s3SinkBucket: this.recordingBucket,
-      },
-    );
+    if (props.selectiveRecording !== 'true') {
+      const dataBaseResources = new RecordingDatabaseResources(
+        this,
+        'DatabaseResources',
+      );
 
-    new RecordingLambdaResources(this, 'LambdaResources', {
-      callTable: dataBaseResources.callTable,
-      recordingBucket: this.recordingBucket,
-      recordingBucketPrefix: props.recordingBucketPrefix,
-      mediaPipeline: mediaPipelineResources.s3RecordingSinkConfiguration,
-      logLevel: props.logLevel,
-      voiceConnectorId: vcResources.voiceConnector.voiceConnectorId,
-    });
+      new RecordingLambdaResources(this, 'LambdaResources', {
+        callTable: dataBaseResources.callTable,
+        recordingBucket: this.recordingBucket,
+        recordingBucketPrefix: props.recordingBucketPrefix,
+        mediaPipeline: mediaPipelineResources.s3RecordingSinkConfiguration,
+        logLevel: props.logLevel,
+        voiceConnectorId: vcResources.voiceConnector.voiceConnectorId,
+      });
+    }
 
     new CfnOutput(this, 'OutputBucket', {
       value: this.recordingBucket.bucketName,
@@ -127,6 +152,9 @@ export interface AmazonChimeSDKCallAnalyticsSummarizationProps
   cohereInstanceType: string;
   modelPackageArn: string;
   modelName: string;
+  voiceConnector: ChimeVoiceConnector;
+  recordingBucketPrefix: string;
+  selectiveRecording: string;
 }
 
 export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
@@ -159,6 +187,10 @@ export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
         logLevel: props.logLevel,
         cohereInstanceType: props.cohereInstanceType,
         modelName: props.modelName,
+        recordingBucketPrefix:
+          props.selectiveRecording === 'true'
+            ? props.voiceConnector.voiceConnectorId
+            : props.recordingBucketPrefix,
       },
     );
 
@@ -189,24 +221,28 @@ const devEnv = {
   region: 'us-east-1',
 };
 
-const stackProps = {
+const recorderStackProps = {
   outputBucket: process.env.OUTPUT_BUCKET || '',
   recordingBucketPrefix: process.env.RECORDING_BUCKET_PREFIX || 'originalAudio',
   buildAsterisk: process.env.BUILD_ASTERISK || 'true',
   sipRecCidrs: process.env.SIPREC_CIDRS || '',
   logLevel: process.env.LOG_LEVEL || 'INFO',
   removalPolicy: process.env.REMOVAL_POLICY || 'DESTROY',
+  selectiveRecording: process.env.SELECTIVE_RECORDING || 'false',
 };
 
 const amazonChimeSDKCallAnalyticsRecording =
   new AmazonChimeSDKCallAnalyticsRecording(
     app,
     'amazon-chime-sdk-call-analytics-recording',
-    { ...stackProps, env: devEnv },
+    { ...recorderStackProps, env: devEnv },
   );
 
 const summarizationStackProps = {
   recordingBucket: amazonChimeSDKCallAnalyticsRecording.recordingBucket,
+  voiceConnector: amazonChimeSDKCallAnalyticsRecording.voiceConnector,
+  recordingBucketPrefix: process.env.RECORDING_BUCKET_PREFIX || 'originalAudio',
+  selectiveRecording: process.env.SELECTIVE_RECORDING || 'false',
   modelName: process.env.MODEL_NAME || 'deployed-cohere-gpt-medium',
   logLevel: process.env.LOG_LEVEL || 'INFO',
   endpointName: process.env.ENDPOINT_NAME || 'deployed-cohere-gpt-medium',

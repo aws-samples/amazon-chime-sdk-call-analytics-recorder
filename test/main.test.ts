@@ -1,5 +1,9 @@
 import { App } from 'aws-cdk-lib';
-import { AmazonChimeSDKCallAnalyticsRecording } from '../src/amazon-chime-sdk-call-analytics-recording';
+import {
+  AmazonChimeSDKCallAnalyticsRecording,
+  AmazonChimeSDKCallAnalyticsSummarization,
+} from '../src/amazon-chime-sdk-call-analytics-recording';
+import { InstanceTypes, ModelArns } from '../src/cohereInput';
 
 const recordingStackProps = {
   outputBucket: '',
@@ -8,13 +12,29 @@ const recordingStackProps = {
   sipRecCidrs: '',
   logLevel: '',
   removalPolicy: '',
+  selectiveRecording: '',
 };
+
+test('Empty', () => {
+  const app = new App();
+  new AmazonChimeSDKCallAnalyticsRecording(app, 'IncludedBucket', {
+    ...recordingStackProps,
+  });
+});
+
+test('IncludedBucketPrefix', () => {
+  const app = new App();
+  new AmazonChimeSDKCallAnalyticsRecording(app, 'IncludedBucket', {
+    ...recordingStackProps,
+    recordingBucketPrefix: 'test',
+  });
+});
 
 test('IncludedBucket', () => {
   const app = new App();
   new AmazonChimeSDKCallAnalyticsRecording(app, 'IncludedBucket', {
     ...recordingStackProps,
-    recordingBucketPrefix: 'test',
+    outputBucket: 'test',
   });
 });
 
@@ -65,6 +85,16 @@ test('GoodCIDRs', () => {
     ...recordingStackProps,
     sipRecCidrs: '198.51.100.0/27,198.51.100.128/28',
   });
+});
+
+test('BadBucketName', () => {
+  expect(() => {
+    const app = new App();
+    new AmazonChimeSDKCallAnalyticsRecording(app, 'BadBucketName', {
+      ...recordingStackProps,
+      outputBucket: '-bad',
+    });
+  }).toThrow('OUTPUT_BUCKET must be a valid S3 bucket name');
 });
 
 test('TooManyCIDRs', () => {
@@ -139,4 +169,181 @@ test('AsteriskAndSIPREC', () => {
       sipRecCidrs: '198.51.100.0/27',
     });
   }).toThrow('BUILD_ASTERISK and SIPREC_CIDRS cannot both be true');
+});
+
+test('SummarizationSelectiveRecording', () => {
+  const app = new App();
+  const recordingTest = new AmazonChimeSDKCallAnalyticsRecording(
+    app,
+    'RecordingSelectiveRecording',
+    {
+      ...recordingStackProps,
+      selectiveRecording: 'true',
+    },
+  );
+
+  const summarizationStackProps = {
+    recordingBucket: recordingTest.recordingBucket,
+    voiceConnector: recordingTest.voiceConnector,
+    recordingBucketPrefix: '',
+    selectiveRecording: '',
+    modelName: '',
+    logLevel: '',
+    endpointName: '',
+    cohereInstanceType: 'ml.g5.xlarge',
+    modelPackageArn:
+      'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
+  };
+
+  new AmazonChimeSDKCallAnalyticsSummarization(
+    app,
+    'SummarizationSelectiveRecording',
+    {
+      ...summarizationStackProps,
+      selectiveRecording: 'true',
+    },
+  );
+});
+
+test('InvalidModelArn', () => {
+  expect(() => {
+    const app = new App();
+    const recordingTest = new AmazonChimeSDKCallAnalyticsRecording(
+      app,
+      'RecordingInvalidModelArn',
+      {
+        ...recordingStackProps,
+        selectiveRecording: 'true',
+      },
+    );
+
+    const summarizationStackProps = {
+      recordingBucket: recordingTest.recordingBucket,
+      voiceConnector: recordingTest.voiceConnector,
+      recordingBucketPrefix: '',
+      selectiveRecording: '',
+      modelName: '',
+      logLevel: '',
+      endpointName: '',
+      cohereInstanceType: 'ml.g5.xlarge',
+      modelPackageArn: 'badArn',
+    };
+
+    new AmazonChimeSDKCallAnalyticsSummarization(
+      app,
+      'SummarizationInvalidModelArn',
+      {
+        ...summarizationStackProps,
+        selectiveRecording: 'true',
+      },
+    );
+  }).toThrow(
+    'Invalid Model Arn.  Valid Model Arns are: ' + Object.values(ModelArns),
+  );
+});
+
+test('InvalidInstanceType', () => {
+  expect(() => {
+    const app = new App();
+    const recordingTest = new AmazonChimeSDKCallAnalyticsRecording(
+      app,
+      'RecordingInvalidInstanceType',
+      {
+        ...recordingStackProps,
+        selectiveRecording: 'true',
+      },
+    );
+
+    const summarizationStackProps = {
+      recordingBucket: recordingTest.recordingBucket,
+      voiceConnector: recordingTest.voiceConnector,
+      recordingBucketPrefix: '',
+      selectiveRecording: '',
+      modelName: '',
+      logLevel: '',
+      endpointName: '',
+      cohereInstanceType: 'badInstanceType',
+      modelPackageArn:
+        'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
+    };
+
+    new AmazonChimeSDKCallAnalyticsSummarization(
+      app,
+      'SummarizationInvalidInstanceType',
+      {
+        ...summarizationStackProps,
+        selectiveRecording: 'true',
+      },
+    );
+  }).toThrow(
+    'Invalid Instance Type.  Valid types are: ' + Object.values(InstanceTypes),
+  );
+});
+
+test('InvalidSelectiveRecording', () => {
+  expect(() => {
+    const app = new App();
+    const recordingTest = new AmazonChimeSDKCallAnalyticsRecording(
+      app,
+      'RecordingInvalidSelectiveRecording',
+      {
+        ...recordingStackProps,
+        selectiveRecording: 'true',
+      },
+    );
+
+    const summarizationStackProps = {
+      recordingBucket: recordingTest.recordingBucket,
+      voiceConnector: recordingTest.voiceConnector,
+      recordingBucketPrefix: '',
+      selectiveRecording: '',
+      modelName: '',
+      logLevel: '',
+      endpointName: '',
+      cohereInstanceType: 'ml.g5.xlarge',
+      modelPackageArn:
+        'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
+    };
+
+    new AmazonChimeSDKCallAnalyticsSummarization(
+      app,
+      'SummarizationInvalidSelectiveRecording',
+      {
+        ...summarizationStackProps,
+        selectiveRecording: 'bad',
+      },
+    );
+  }).toThrow('SELECTIVE_RECORDING must be true or false');
+});
+
+test('SummarizationEmpty', () => {
+  const app = new App();
+  const recordingTest = new AmazonChimeSDKCallAnalyticsRecording(
+    app,
+    'RecordingSummarizationEmpty',
+    {
+      ...recordingStackProps,
+    },
+  );
+
+  const summarizationStackProps = {
+    recordingBucket: recordingTest.recordingBucket,
+    voiceConnector: recordingTest.voiceConnector,
+    recordingBucketPrefix: '',
+    selectiveRecording: '',
+    modelName: '',
+    logLevel: '',
+    endpointName: '',
+    cohereInstanceType: 'ml.g5.xlarge',
+    modelPackageArn:
+      'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
+  };
+
+  new AmazonChimeSDKCallAnalyticsSummarization(
+    app,
+    'SummarizationSummarizationEmpty',
+    {
+      ...summarizationStackProps,
+    },
+  );
 });

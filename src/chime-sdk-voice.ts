@@ -7,12 +7,15 @@ import {
   ChimeVoiceConnector,
   PhoneCountry,
   NotificationTargetType,
+  MediaInsightsPipeline,
 } from 'cdk-amazon-chime-resources';
 import { Construct } from 'constructs';
 
 interface VCResourcesProps {
   buildAsterisk: string;
   sipRecCidrs: string;
+  selectiveRecording: string;
+  mediaInsightsConfiguration: MediaInsightsPipeline;
 }
 export class VCResources extends Construct {
   public readonly phoneNumber?: ChimePhoneNumber;
@@ -34,6 +37,12 @@ export class VCResources extends Construct {
         enabled: true,
         dataRetention: 24,
         notificationTargets: [NotificationTargetType.EVENTBRIDGE],
+        mediaInsightsConfiguration: {
+          disabled: !Boolean(props.selectiveRecording),
+          configurationArn:
+            props.mediaInsightsConfiguration
+              .mediaInsightsPipelineConfigurationArn,
+        },
       },
     });
 
