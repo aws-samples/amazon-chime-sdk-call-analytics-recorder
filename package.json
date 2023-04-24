@@ -38,14 +38,14 @@
     "jest": "^29.5.0",
     "jest-junit": "^15",
     "npm-check-updates": "^16",
-    "projen": "^0.71.21",
+    "projen": "^0.71.22",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.4"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.70.0",
-    "cdk-amazon-chime-resources": "^2.3.8",
+    "cdk-amazon-chime-resources": "^2.3.9",
     "constructs": "^10.0.5",
     "dotenv": "^16.0.3"
   },
