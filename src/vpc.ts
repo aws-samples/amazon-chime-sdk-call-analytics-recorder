@@ -1,5 +1,6 @@
 import {
   SecurityGroup,
+  CfnEIP,
   Peer,
   Port,
   SubnetType,
@@ -8,11 +9,14 @@ import {
 import { Construct } from 'constructs';
 
 export class VPCResources extends Construct {
+  public asteriskEip: CfnEIP;
   public securityGroup: SecurityGroup;
   public vpc: Vpc;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
+
+    this.asteriskEip = new CfnEIP(this, 'asteriskEip');
 
     this.vpc = new Vpc(this, 'VPC', {
       natGateways: 0,

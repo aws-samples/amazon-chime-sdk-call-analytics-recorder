@@ -13,6 +13,12 @@ import {
 } from 'cdk-amazon-chime-resources';
 import { Construct } from 'constructs';
 
+function generateRandomString(length = 8): string {
+  return Array.from({ length }, () =>
+    (Math.random() * 36).toString(36).toUpperCase().charAt(0),
+  ).join('');
+}
+
 interface MediaPipelineResourcesProps extends StackProps {
   s3SinkBucket: IBucket;
 }
@@ -142,7 +148,7 @@ export class MediaPipelineResources extends Construct {
       's3RecordingSinkConfiguration',
       {
         resourceAccessRoleArn: resourceAccessRole.roleArn,
-        mediaInsightsPipelineConfigurationName: 's3RecordingSinkConfiguration',
+        mediaInsightsPipelineConfigurationName: `s3RecordingSinkConfiguration${generateRandomString()}`,
         elements: [
           {
             type: ElementsType.S3_RECORDING_SINK,
