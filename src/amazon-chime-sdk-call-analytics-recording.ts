@@ -9,7 +9,7 @@ import {
   RecordingLambdaResources,
   VPCResources,
   VCResources,
-  ECSResources,
+  AsteriskResources,
   MediaPipelineResources,
   EventBridgeResources,
   SummarizationStateMachineResources,
@@ -79,42 +79,17 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
     if (props.buildAsterisk === 'true') {
       const vpcResources = new VPCResources(this, 'VPCResources');
 
-      const ecsResources = new ECSResources(this, 'ECSResources', {
+      new AsteriskResources(this, 'asteriskResources', {
         vpc: vpcResources.vpc,
+        asteriskEip: vpcResources.asteriskEip,
         securityGroup: vpcResources.securityGroup,
         phoneNumber: vcResources.phoneNumber!,
         voiceConnector: vcResources.voiceConnector,
         logLevel: props.logLevel,
       });
-      new CfnOutput(this, 'ClusterArn', {
-        value: 'CLUSTER=' + ecsResources.cluster.clusterArn,
-      });
-      new CfnOutput(this, 'getTask', {
-        value:
-          'TASK=$( aws ecs list-tasks --cluster $CLUSTER --query taskArns --output text )',
-      });
-
-      new CfnOutput(this, 'ecsExecute', {
-        value:
-          'aws ecs execute-command --cluster $CLUSTER --task $TASK --command "asterisk -rvvvvvv" --interactive',
-      });
 
       new CfnOutput(this, 'PhoneNumber', {
         value: vcResources!.phoneNumber!.phoneNumber!,
-      });
-
-      new CfnOutput(this, 'Service', {
-        value: 'SERVICE=' + ecsResources.service.serviceName,
-      });
-
-      new CfnOutput(this, 'DisableService', {
-        value:
-          'aws ecs update-service --cluster $CLUSTER --service $SERVICE --desired-count 0',
-      });
-
-      new CfnOutput(this, 'EnableService', {
-        value:
-          'aws ecs update-service --cluster $CLUSTER --service $SERVICE --desired-count 1',
       });
     }
 
