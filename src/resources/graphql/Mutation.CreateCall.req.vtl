@@ -1,0 +1,14 @@
+{
+  "version": "2017-02-28",
+  "operation": "PutItem",
+  "key": {
+    "transactionId": $util.dynamodb.toDynamoDBJson($ctx.args.input.transactionId),
+  },
+  "attributeValues": $util.dynamodb.toMapValuesJson($ctx.args.input),
+  "condition": {
+    "expression": "attribute_not_exists(#transactionId)",
+    "expressionNames": {
+      "#transactionId": "transactionId",
+    },
+  },
+}

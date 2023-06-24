@@ -1,40 +1,51 @@
 import { App, Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
-import { IBucket, Bucket } from 'aws-cdk-lib/aws-s3';
-import { ChimeVoiceConnector } from 'cdk-amazon-chime-resources';
+import {
+  IUserPool,
+  IUserPoolClient,
+  UserPool,
+  UserPoolClient,
+} from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 import { config } from 'dotenv';
 import {
   S3Resources,
-  RecordingDatabaseResources,
-  RecordingLambdaResources,
+  CognitoResources,
+  DatabaseResources,
+  DistributionResources,
+  LambdaResources,
   VPCResources,
   VCResources,
-  AsteriskResources,
+  ApiGatewayResources,
+  ServerResources,
   MediaPipelineResources,
-  EventBridgeResources,
-  SummarizationStateMachineResources,
-  SummarizationDatabaseResources,
-  SummarizationLambdaResources,
   recorderEnvValidator,
-  summarizerEnvValidator,
+  AppSyncResources,
+  EventBridgeResources,
 } from './';
 
 config();
 
+interface CognitoOutput {
+  userPool: IUserPool;
+  userPoolClient: IUserPoolClient;
+  userPoolRegion: string;
+}
+
 export interface AmazonChimeSDKCallAnalyticsRecordingStackProps
   extends StackProps {
-  outputBucket: string;
-  recordingBucketPrefix: string;
-  buildAsterisk: string;
-  sipRecCidrs: string;
+  createSageMakerOnStart: string;
+  modelName: string;
+  endpointName: string;
+  cohereInstanceType: string;
+  modelPackageArn: string;
   logLevel: string;
-  removalPolicy: string;
-  selectiveRecording: string;
+  allowedDomain?: string;
+  userPool?: string;
+  userPoolClient?: string;
+  userPoolRegion?: string;
+  publicSshKey: string;
 }
 export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
-  public recordingBucket: IBucket;
-  public voiceConnector: ChimeVoiceConnector;
-
   constructor(
     scope: Construct,
     id: string,
@@ -43,148 +54,122 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
     super(scope, id, props);
 
     recorderEnvValidator(props);
+    let cognito: CognitoOutput;
 
-    if (props.outputBucket === '') {
-      const s3Resources = new S3Resources(this, 'S3Resources', {
-        removalPolicy: props.removalPolicy,
-      });
-      this.recordingBucket = s3Resources.recordingBucket;
+    if (props.userPoolRegion && props.userPool && props.userPoolClient) {
+      cognito = {
+        userPoolRegion: props.userPoolRegion,
+        userPool: UserPool.fromUserPoolArn(this, 'userPoolId', props.userPool),
+        userPoolClient: UserPoolClient.fromUserPoolClientId(
+          this,
+          'userPoolClientId',
+          props.userPoolClient,
+        ),
+      };
     } else {
-      // istanbul ignore next
-      this.recordingBucket = Bucket.fromBucketName(
-        this,
-        'OutputBucketResource',
-        props.outputBucket,
-      );
+      cognito = new CognitoResources(this, 'Cognito', {
+        allowedDomain: props.allowedDomain || '',
+      });
     }
 
+    const s3Resources = new S3Resources(this, 'S3Resources');
+
+    const dataBaseResources = new DatabaseResources(this, 'DatabaseResources');
+
+    const appSyncResources = new AppSyncResources(this, 'AppSyncResources', {
+      userPool: cognito.userPool,
+      callTable: dataBaseResources.callTable,
+    });
+
+    new EventBridgeResources(this, 'EventBridgeResources', {
+      graphqlEndpoint: appSyncResources.graphqlEndpoint,
+    });
     const mediaPipelineResources = new MediaPipelineResources(
       this,
       'MediaPipelineResources',
       {
-        s3SinkBucket: this.recordingBucket,
+        s3SinkBucket: s3Resources.recordingBucket,
       },
     );
 
+    const vpcResources = new VPCResources(this, 'VPCResources');
+
     const vcResources = new VCResources(this, 'VCResources', {
-      buildAsterisk: props.buildAsterisk,
-      sipRecCidrs: props.sipRecCidrs,
-      selectiveRecording: props.selectiveRecording,
       mediaInsightsConfiguration:
         mediaPipelineResources.s3RecordingSinkConfiguration,
+      serverEip: vpcResources.serverEip,
     });
 
-    this.voiceConnector = vcResources.voiceConnector;
+    const lambdaResources = new LambdaResources(this, 'LambdaResources', {
+      logLevel: props.logLevel,
+      endpointName: props.endpointName,
+      modelPackageArn: props.modelPackageArn,
+      cohereInstanceType: props.cohereInstanceType,
+      modelName: props.modelName,
+      createSageMakerOnStart: props.createSageMakerOnStart,
+      recordingBucket: s3Resources.recordingBucket,
+      graphqlEndpoint: appSyncResources.graphqlEndpoint,
+      voiceConnectorId: vcResources.voiceConnector.voiceConnectorId,
+    });
 
-    if (props.buildAsterisk === 'true') {
-      const vpcResources = new VPCResources(this, 'VPCResources');
-
-      new AsteriskResources(this, 'asteriskResources', {
-        vpc: vpcResources.vpc,
-        asteriskEip: vpcResources.asteriskEip,
-        securityGroup: vpcResources.securityGroup,
-        phoneNumber: vcResources.phoneNumber!,
-        voiceConnector: vcResources.voiceConnector,
+    const apiGatewayResources = new ApiGatewayResources(
+      this,
+      'apiGatewayResources',
+      {
+        // connectionTable: dataBaseResources.connectionTable,
         logLevel: props.logLevel,
-      });
+        controlSageMakerLambda: lambdaResources.controlSageMakerLambda,
+      },
+    );
 
-      new CfnOutput(this, 'PhoneNumber', {
-        value: vcResources!.phoneNumber!.phoneNumber!,
-      });
-    }
+    new ServerResources(this, 'ServerResources', {
+      vpc: vpcResources.vpc,
+      serverEip: vpcResources.serverEip,
+      voiceSecurityGroup: vpcResources.voiceSecurityGroup,
+      albSecurityGroup: vpcResources.albSecurityGroup,
+      sshSecurityGroup: vpcResources.sshSecurityGroup,
+      applicationLoadBalancer: vpcResources.applicationLoadBalancer,
+      phoneNumber: vcResources.phoneNumber!,
+      voiceConnector: vcResources.voiceConnector,
+      userPool: cognito.userPool,
+      userPoolClient: cognito.userPoolClient,
+      userPoolRegion: cognito.userPoolRegion,
+      logLevel: props.logLevel,
+      controlSageMakerApi: apiGatewayResources.controlSageMakerApi,
+      graphqlEndpoint: appSyncResources.graphqlEndpoint,
+      publicSshKey: props.publicSshKey,
+    });
 
-    if (props.selectiveRecording === 'true') {
-      const dataBaseResources = new RecordingDatabaseResources(
-        this,
-        'DatabaseResources',
-      );
+    const distributionResources = new DistributionResources(
+      this,
+      'DistributionResources',
+      {
+        applicationLoadBalancer: vpcResources.applicationLoadBalancer,
+      },
+    );
 
-      new RecordingLambdaResources(this, 'LambdaResources', {
-        callTable: dataBaseResources.callTable,
-        recordingBucket: this.recordingBucket,
-        recordingBucketPrefix: props.recordingBucketPrefix,
-        mediaPipeline: mediaPipelineResources.s3RecordingSinkConfiguration,
-        logLevel: props.logLevel,
-        voiceConnectorId: vcResources.voiceConnector.voiceConnectorId,
-      });
-    }
+    new CfnOutput(this, 'PhoneNumber', {
+      value: vcResources!.phoneNumber!.phoneNumber!,
+    });
 
     new CfnOutput(this, 'OutputBucket', {
-      value: this.recordingBucket.bucketName,
+      value: s3Resources.recordingBucket.bucketName,
     });
 
     new CfnOutput(this, 'VoiceConnector', {
-      value: vcResources.voiceConnector!.voiceConnectorId,
+      value: vcResources.voiceConnector.voiceConnectorId,
     });
-  }
-}
 
-export interface AmazonChimeSDKCallAnalyticsSummarizationProps
-  extends StackProps {
-  recordingBucket: IBucket;
-  logLevel: string;
-  endpointName: string;
-  cohereInstanceType: string;
-  modelPackageArn: string;
-  modelName: string;
-  voiceConnector: ChimeVoiceConnector;
-  recordingBucketPrefix: string;
-  selectiveRecording: string;
-}
+    new CfnOutput(this, 'DistributionUrl', {
+      value: distributionResources.distribution.domainName,
+    });
 
-export class AmazonChimeSDKCallAnalyticsSummarization extends Stack {
-  constructor(
-    scope: Construct,
-    id: string,
-    props: AmazonChimeSDKCallAnalyticsSummarizationProps,
-  ) {
-    super(scope, id, props);
+    new CfnOutput(this, 'GraphQLApi', {
+      value: appSyncResources.graphqlEndpoint.graphqlUrl,
+    });
 
-    summarizerEnvValidator(props);
-    const summarizationDatabaseResources = new SummarizationDatabaseResources(
-      this,
-      'RecordingDatabaseResources',
-    );
-    const recordingBucket = Bucket.fromBucketName(
-      this,
-      'RecordingBucket',
-      props.recordingBucket.bucketName,
-    );
-
-    const summarizationLambdaResources = new SummarizationLambdaResources(
-      this,
-      'summarizationLambdaResources',
-      {
-        recordingBucket: recordingBucket,
-        statusTable: summarizationDatabaseResources.statusTable,
-        endpointName: props.endpointName,
-        modelPackageArn: props.modelPackageArn,
-        logLevel: props.logLevel,
-        cohereInstanceType: props.cohereInstanceType,
-        modelName: props.modelName,
-        recordingBucketPrefix:
-          props.selectiveRecording === 'false'
-            ? props.voiceConnector.voiceConnectorId
-            : props.recordingBucketPrefix,
-      },
-    );
-
-    new SummarizationStateMachineResources(
-      this,
-      'SummarizationStateMachineResources',
-      {
-        startSagemakerLambda: summarizationLambdaResources.startSagemakerLambda,
-        checkEndpointLambda: summarizationLambdaResources.checkEndpointLambda,
-        startSummarizationLambda:
-          summarizationLambdaResources.startSummarizationLambda,
-        recordingBucket: recordingBucket,
-        endpointName: props.endpointName,
-        logLevel: props.logLevel,
-      },
-    );
-
-    new EventBridgeResources(this, 'EventBridgeResources', {
-      checkStatus: summarizationLambdaResources.checkStatusLambda,
+    new CfnOutput(this, 'ssh command', {
+      value: `ssh ubunut@${vpcResources.serverEip.ref}`,
     });
   }
 }
@@ -196,30 +181,15 @@ const devEnv = {
   region: 'us-east-1',
 };
 
-const recorderStackProps = {
-  outputBucket: process.env.OUTPUT_BUCKET || '',
-  recordingBucketPrefix: process.env.RECORDING_BUCKET_PREFIX || 'originalAudio',
-  buildAsterisk: process.env.BUILD_ASTERISK || 'true',
-  sipRecCidrs: process.env.SIPREC_CIDRS || '',
+const stackProps = {
   logLevel: process.env.LOG_LEVEL || 'INFO',
-  removalPolicy: process.env.REMOVAL_POLICY || 'DESTROY',
-  selectiveRecording: process.env.SELECTIVE_RECORDING || 'false',
-};
-
-const amazonChimeSDKCallAnalyticsRecording =
-  new AmazonChimeSDKCallAnalyticsRecording(
-    app,
-    'amazon-chime-sdk-call-analytics-recording',
-    { ...recorderStackProps, env: devEnv },
-  );
-
-const summarizationStackProps = {
-  recordingBucket: amazonChimeSDKCallAnalyticsRecording.recordingBucket,
-  voiceConnector: amazonChimeSDKCallAnalyticsRecording.voiceConnector,
-  recordingBucketPrefix: process.env.RECORDING_BUCKET_PREFIX || 'originalAudio',
-  selectiveRecording: process.env.SELECTIVE_RECORDING || 'false',
+  publicSshKey: process.env.PUBLIC_SSH_KEY || '',
+  userPool: process.env.USER_POOL || '',
+  userPoolClient: process.env.USER_POOL_CLIENT || '',
+  userPoolRegion: process.env.USER_POOL_REGION || '',
+  allowedDomain: process.env.ALLOWED_DOMAIN || '',
+  createSageMakerOnStart: process.env.CREATE_SAGEMAKER_ON_START || 'false',
   modelName: process.env.MODEL_NAME || 'deployed-cohere-gpt-medium',
-  logLevel: process.env.LOG_LEVEL || 'INFO',
   endpointName: process.env.ENDPOINT_NAME || 'deployed-cohere-gpt-medium',
   cohereInstanceType: process.env.COHERE_INSTANCE_TYPE || 'ml.g5.xlarge',
   modelPackageArn:
@@ -227,13 +197,10 @@ const summarizationStackProps = {
     'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a',
 };
 
-new AmazonChimeSDKCallAnalyticsSummarization(
+new AmazonChimeSDKCallAnalyticsRecording(
   app,
-  'amazon-chime-sdk-call-analytics-summarization',
-  {
-    ...summarizationStackProps,
-    env: devEnv,
-  },
+  'amazon-chime-sdk-call-analytics-recording',
+  { ...stackProps, env: devEnv },
 );
 
 app.synth();
