@@ -8,6 +8,7 @@ type Call @aws_api_key @aws_cognito_user_pools {
   status: String
   wavFile: String
   transcriptionFile: String
+  transcription: AWSJSON
   queries: [AWSJSON]
 }
 
@@ -26,6 +27,7 @@ input CreateCallInput {
   status: String
   wavFile: String
   transcriptionFile: String
+  transcription: AWSJSON
   queries: [AWSJSON]
 }
 
@@ -122,6 +124,7 @@ input UpdateCallInput {
   status: String
   wavFile: String
   transcriptionFile: String
+  transcription: AWSJSON
   queries: [AWSJSON]
 }
 

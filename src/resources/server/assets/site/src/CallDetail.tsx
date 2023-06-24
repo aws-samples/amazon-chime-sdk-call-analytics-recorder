@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react';
 import { Modal, Tabs, Table } from '@cloudscape-design/components';
 import { CallContext, Call } from './CallContext';
 import { SummaryTable } from './SummaryTable';
+import { Transcription } from './Transcription';
 import CallTable from './CallTable';
 
 export const CallDetail = () => {
@@ -37,7 +38,9 @@ export const CallDetail = () => {
             {
               label: 'Transcription',
               id: 'transcription',
-              content: <div>Transcription</div>,
+              content: (
+                <Transcription transcription={selectedCall?.transcription} />
+              ),
             },
             {
               label: 'Queries',

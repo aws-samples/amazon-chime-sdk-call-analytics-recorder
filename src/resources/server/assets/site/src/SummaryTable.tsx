@@ -16,6 +16,8 @@ export const SummaryTable: React.FC<SummaryTableProps> = ({ queries }) => {
     }
   }
 
+  console.log(`Queries: ${JSON.stringify(parsedQueries, null, 2)}\n`);
+
   return (
     <Table
       header='Queries'

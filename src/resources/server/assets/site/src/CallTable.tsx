@@ -16,6 +16,7 @@ const CallTable: React.FC<CallTableProps> = ({ data, onCallClick }) => {
     status: call.status,
     wavFile: call.wavFile,
     transcriptionFile: call.transcriptionFile,
+    transcription: call.transcription,
     callId: call.callId,
     queries: call.queries,
   }));

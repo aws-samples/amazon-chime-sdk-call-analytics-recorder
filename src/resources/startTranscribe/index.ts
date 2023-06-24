@@ -45,6 +45,7 @@ const startTranscriptionMutation = gql`
       wavFile
       transcriptionFile
       queries
+      transcription
     }
   }
 `;

@@ -18,6 +18,7 @@ export type Call = {
   status: string;
   wavFile: string;
   transcriptionFile: string;
+  transcription: string;
   queries: any[];
 };
 

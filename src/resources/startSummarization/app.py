@@ -24,6 +24,7 @@ mutation UpdateCall($input: UpdateCallInput!) {
     wavFile
     transcriptionFile
     queries
+    transcription
     }
 }
 '''
@@ -103,17 +104,17 @@ def chunk_transcription(transcript):
 #     return chunks
 
 
-# This makes speakers more human readable
 def rename_speakers(chunks):
     """
-    Replaces the spk_0, spk_1 with a more human-readable version.
+    Replaces the spk_0, spk_1 with more human-readable identifiers.
     """
-    speaker_mapping = {}  # if you have a proper speaker_mapping, then replace here
-    for i in range(20):
-        speaker_mapping["spk_%i" % i] = "Speaker %i" % i
+    speaker_mapping = {'spk_0': 'Agent', 'spk_1': 'Customer'}
+    for i in range(2, 20):
+        speaker_mapping[f'spk_{i}'] = f'Speaker {i}'
 
     for c in chunks:
-        c['speaker_label'] = speaker_mapping[c['speaker_label']]
+        c['speaker_label'] = speaker_mapping.get(c['speaker_label'], c['speaker_label'])
+
     return chunks
 
 # Build Lines
@@ -229,33 +230,36 @@ Combine the summaries and answer this question: %s""" % question
     return full_summary, prompt
 
 
-def run_call(transcript, question=SUMMARY_QUESTION, verbose=False):
+def run_call(transcript, question=SUMMARY_QUESTION):
 
     # break call into dialogue lines
     chunks = chunk_transcription(transcript)
     chunks = rename_speakers(chunks)
 
+    logger.info('%s Chunks: %s', LOG_PREFIX, chunks)
+
+    # combine all dictionaries in chunks into a single list
+    combined_chunks = []
+    for chunk in chunks:
+        combined_chunks.append(chunk)
+
+    logger.info('%s Combined Chunks: %s', LOG_PREFIX, combined_chunks)
     # break dialogue lines into partitions
     partitions = partition_call(chunks, 1000, 0.3)
     prompts = get_call_prompts(partitions, question)
 
-    # Print Option
-    if verbose:
-        print('Prompt for Partition 1:')
-        print(prompts[0])
-
+    logger.info('%s Prompt for Partition 1: %s ', LOG_PREFIX, prompts[0])
     # Partition Summary
     summaries = get_responses(prompts)
 
     # Combined Summary
     summary, summary_prompt = summarize_summaries(summaries)
 
-    # Print Option
-    if verbose:
-        print('Full Summary:')
-        print(summary)
+    logger.info('%s Full Summary: %s', LOG_PREFIX, summary)
+    logger.info('%s Transcription: %s', LOG_PREFIX, combined_chunks)
 
     summary_dict = {
+        'transcription': combined_chunks,
         'list_prompt': prompts,
         'summary_prompt': summary_prompt,
         'final_summary': summary,
@@ -294,15 +298,21 @@ def put_summary(summary_event, prompt_id):
     s3.put_object(Bucket=OUTPUT_BUCKET, Key=key, Body=summary_event)
 
 
-def update_call_in_graphql_api(transaction_id, status, queries=None):
+def update_call_in_graphql_api(transaction_id, status, transcription=None, queries=None):
     logger.info('%s Updating call in GraphQL API: %s', LOG_PREFIX, transaction_id)
     variables = {
         'input': {
             'transactionId': transaction_id,
             'status': status,
-            'queries': queries
+            'queries': queries,
+            'transcription': transcription
         }
     }
+
+    if transcription is not None:
+        transcription = json.dumps(transcription).replace('\\n', '\\\\n')
+        variables['input']['transcription'] = transcription
+        logger.info('%s Transcription: %s', LOG_PREFIX, transcription)
 
     if queries is not None:
         modified_queries = [json.dumps(query).replace('\\n', '\\\\n') for query in queries]
@@ -363,4 +373,4 @@ def handler(event, context):
     summary_event["summaryEvent"]['prompt_id'] = prompt_id
     put_summary(summary_event, prompt_id)
     query = [{"prompt": summary_event['summaryEvent']['question'], "response": summary_event['summaryEvent']['final_summary']}]
-    update_call_in_graphql_api(transaction_id, "Summarized", query)
+    update_call_in_graphql_api(transaction_id, "Summarized", transcription=summary_dict['transcription'], queries=query)

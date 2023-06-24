@@ -19,6 +19,7 @@ type OnCreateCall = {
     status: string;
     wavFile: string;
     transcriptionFile: string;
+    transcription: string;
     queries: any[];
   };
 };
@@ -34,6 +35,7 @@ type OnUpdateCall = {
     status: string;
     wavFile: string;
     transcriptionFile: string;
+    transcription: string;
     queries: any[];
   };
 };
@@ -49,6 +51,7 @@ type OnDeleteCall = {
     status: string;
     wavFile: string;
     transcriptionFile: string;
+    transcription: string;
     queries: any[];
   };
 };

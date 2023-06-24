@@ -26,6 +26,7 @@ const startRecordingMutation = gql`
       status
       wavFile
       transcriptionFile
+      transcription
       queries
     }
   }
@@ -43,6 +44,7 @@ const stopRecordingMutation = gql`
       status
       wavFile
       transcriptionFile
+      transcription
       queries
     }
   }
