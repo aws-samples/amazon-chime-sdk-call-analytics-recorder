@@ -154,7 +154,7 @@ async function startRecording(event: EventBridge) {
 async function stopRecording(event: EventBridge) {
   const { transactionId, callId, endTime } = event.detail;
 
-  let status = 'Call ended';
+  let status = 'Recording processing';
   const variables = {
     input: {
       transactionId,

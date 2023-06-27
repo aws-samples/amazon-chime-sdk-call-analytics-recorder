@@ -95,6 +95,17 @@ export class AppSyncResources extends Construct {
       ),
     });
 
+    callTableDataSource.createResolver('AddQuery', {
+      typeName: 'Mutation',
+      fieldName: 'addQueryToCall',
+      requestMappingTemplate: MappingTemplate.fromFile(
+        './src/resources/graphql/Mutation.AddQuery.req.vtl',
+      ),
+      responseMappingTemplate: MappingTemplate.fromFile(
+        './src/resources/graphql/Mutation.AddQuery.res.vtl',
+      ),
+    });
+
     callTableDataSource.createResolver('GetCall', {
       typeName: 'Query',
       fieldName: 'getCall',

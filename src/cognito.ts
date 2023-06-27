@@ -19,10 +19,12 @@ import {
 } from 'aws-cdk-lib/aws-iam';
 import { Runtime, Architecture } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 interface CognitoResourcesProps {
-  readonly allowedDomain: string;
+  allowedDomain: string;
+  recordingBucket: Bucket;
 }
 
 export class CognitoResources extends Construct {
@@ -65,14 +67,6 @@ export class CognitoResources extends Construct {
           required: true,
           mutable: true,
         },
-        phoneNumber: {
-          required: true,
-          mutable: true,
-        },
-        givenName: {
-          required: true,
-          mutable: true,
-        },
       },
       mfa: Mfa.OPTIONAL,
       mfaSecondFactor: {
@@ -80,14 +74,16 @@ export class CognitoResources extends Construct {
         otp: true,
       },
       userInvitation: {
-        emailSubject: 'Your Click-To-Call web app temporary password',
+        emailSubject:
+          'Your Amazon Chime SDK Call Analytics Recorder web app temporary password',
         emailBody:
-          'Your Click-To-Call web app username is {username} and temporary password is {####}',
+          'Your Amazon Chime SDK Call Analytics Recorder web app username is {username} and temporary password is {####}',
       },
       userVerification: {
-        emailSubject: 'Verify your new Click-To-Call web app account',
+        emailSubject:
+          'Verify your new Amazon Chime SDK Call Analytics Recorder web app account',
         emailBody:
-          'The verification code to your new Click-To-Call web app account is {####}',
+          'The verification code to your new Amazon Chime SDK Call Analytics Recorder web app account is {####}',
       },
     });
 
@@ -170,6 +166,17 @@ export class CognitoResources extends Construct {
           'cognito-identity:*',
         ],
         resources: ['*'],
+      }),
+    );
+
+    authenticatedRole.addToPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['s3:*'],
+        resources: [
+          props.recordingBucket.bucketArn,
+          `${props.recordingBucket.bucketArn}/*`,
+        ],
       }),
     );
 

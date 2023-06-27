@@ -11,6 +11,7 @@ export const onCreateCall = gql`
       callEndTime
       status
       wavFile
+      transcription
       transcriptionFile
       queries
     }
@@ -28,6 +29,7 @@ export const onUpdateCall = gql`
       callEndTime
       status
       wavFile
+      transcription
       transcriptionFile
       queries
     }
@@ -45,7 +47,17 @@ export const onDeleteCall = gql`
       callEndTime
       status
       wavFile
+      transcription
       transcriptionFile
+      queries
+    }
+  }
+`;
+
+export const addQueryToCall = gql`
+  subscription AddQueryToCall {
+    addQueryToCall {
+      transactionId
       queries
     }
   }

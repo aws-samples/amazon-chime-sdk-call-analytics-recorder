@@ -7,10 +7,11 @@ import {
 } from '@cloudscape-design/components';
 import '@cloudscape-design/global-styles/index.css';
 import { Subscription } from './Subscription';
-import { CallDetail } from './CallDetail';
+import CallTable from './CallTable';
 import { CallProvider } from './CallContext';
 import { AmplifyConfig } from './Config';
 import { Auth, Amplify, API } from 'aws-amplify';
+import { CognitoUserSession } from 'amazon-cognito-identity-js';
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import { Status } from './Status';
@@ -20,18 +21,31 @@ API.configure(AmplifyConfig);
 Amplify.Logger.LOG_LEVEL = 'DEBUG';
 
 const App: React.FC = () => {
-  const [currentCredentials, setCurrentCredentials] = useState({});
-  const [currentSession, setCurrentSession] = useState({});
-
   useEffect(() => {
     async function getAuth() {
-      setCurrentSession(await Auth.currentSession());
-      setCurrentCredentials(await Auth.currentUserCredentials());
-      console.log(`authState: ${JSON.stringify(currentSession)}`);
-      console.log(`currentCredentials: ${JSON.stringify(currentCredentials)}`);
+      try {
+        const cognitoUser = await Auth.currentAuthenticatedUser();
+        const currentSession = await Auth.currentSession();
+        cognitoUser.refreshSession(
+          currentSession.getRefreshToken(),
+          (err: Error, session: CognitoUserSession) => {
+            console.log('session', err, session);
+          },
+        );
+      } catch (e) {
+        console.log('Unable to refresh Token', e);
+      }
     }
     getAuth();
   }, []);
+
+  async function signOut() {
+    try {
+      await Auth.signOut();
+    } catch (error) {
+      console.log('error signing out: ', error);
+    }
+  }
 
   const formFields = {
     signUp: {
@@ -39,21 +53,11 @@ const App: React.FC = () => {
         order: 1,
         isRequired: true,
       },
-      given_name: {
-        order: 2,
-        isRequired: true,
-        placeholder: 'Name',
-      },
-      phone_number: {
-        order: 3,
-        isRequired: true,
-        placeholder: 'Phone Number',
-      },
       password: {
-        order: 4,
+        order: 2,
       },
       confirm_password: {
-        order: 5,
+        order: 3,
       },
     },
   };
@@ -70,13 +74,13 @@ const App: React.FC = () => {
                 </Header>
               }
             >
-              <SpaceBetween size='l'>
-                <CallProvider>
+              <CallProvider>
+                <SpaceBetween size='xl'>
                   <Status />
                   <Subscription />
-                  <CallDetail />
-                </CallProvider>
-              </SpaceBetween>
+                  <CallTable />
+                </SpaceBetween>
+              </CallProvider>
             </ContentLayout>
           }
           navigationHide={true}

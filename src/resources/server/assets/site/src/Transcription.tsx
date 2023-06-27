@@ -1,32 +1,35 @@
-import React from 'react';
+import React, { useContext, useState, useEffect } from 'react';
+import { CallContext } from './CallContext';
 import { Table } from '@cloudscape-design/components';
 
 type TranscriptionProps = {
-  transcription: string | undefined;
+  transactionId: string | undefined;
 };
 
 export const Transcription: React.FC<TranscriptionProps> = ({
-  transcription,
+  transactionId,
 }) => {
-  console.log('Transcription:', transcription);
-  if (!transcription) return null;
+  const { calls, addQueryToCall } = useContext(CallContext);
+  const [parsedTranscription, setParsedTranscription] = useState<
+    { speaker_label: string; words: string }[]
+  >([]);
 
-  let parsedTranscription: {
-    speaker_label: string;
-    words: string;
-  }[];
+  useEffect(() => {
+    console.log(`transactionId: ${transactionId}`);
+    if (transactionId) {
+      const currentCall = calls.find(
+        (call) => call.transactionId === transactionId,
+      );
 
-  try {
-    parsedTranscription = JSON.parse(transcription);
-  } catch (error) {
-    console.error('Failed to parse transcription:', error);
-    return null;
-  }
-
-  const tableData = parsedTranscription.map((item) => ({
-    speaker: item.speaker_label,
-    words: item.words,
-  }));
+      if (currentCall) {
+        console.log(`currentCall: ${JSON.stringify(currentCall)}`);
+        if (currentCall.transcription) {
+          const transcription = JSON.parse(currentCall.transcription);
+          setParsedTranscription(transcription);
+        }
+      }
+    }
+  }, [transactionId, calls]);
 
   return (
     <Table
@@ -35,7 +38,7 @@ export const Transcription: React.FC<TranscriptionProps> = ({
         {
           id: 'speaker',
           header: 'Speaker',
-          cell: (item) => item.speaker,
+          cell: (item) => item.speaker_label,
           isRowHeader: true,
         },
         {
@@ -45,7 +48,7 @@ export const Transcription: React.FC<TranscriptionProps> = ({
           isRowHeader: true,
         },
       ]}
-      items={tableData}
+      items={parsedTranscription}
       stickyHeader
       wrapLines
       variant='container'

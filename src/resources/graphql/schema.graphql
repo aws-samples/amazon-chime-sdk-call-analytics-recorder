@@ -1,3 +1,8 @@
+input AddQueryToCallInput {
+  transactionId: String!
+  queries: AWSJSON!
+}
+
 type Call @aws_api_key @aws_cognito_user_pools {
   callId: String
   transactionId: String!
@@ -7,9 +12,9 @@ type Call @aws_api_key @aws_cognito_user_pools {
   callEndTime: AWSDateTime
   status: String
   wavFile: String
-  transcriptionFile: String
+  transcriptionFile: AWSJSON
   transcription: AWSJSON
-  queries: [AWSJSON]
+  queries: AWSJSON
 }
 
 type CallConnection @aws_api_key @aws_cognito_user_pools {
@@ -26,13 +31,25 @@ input CreateCallInput {
   callEndTime: AWSDateTime
   status: String
   wavFile: String
-  transcriptionFile: String
+  transcriptionFile: AWSJSON
   transcription: AWSJSON
-  queries: [AWSJSON]
+  queries: AWSJSON
 }
 
 input DeleteCallInput {
   transactionId: String!
+}
+
+input TableAWSDateTimeFilterInput {
+  ne: AWSDateTime
+  eq: AWSDateTime
+  le: AWSDateTime
+  lt: AWSDateTime
+  ge: AWSDateTime
+  gt: AWSDateTime
+  contains: AWSDateTime
+  notContains: AWSDateTime
+  between: [AWSDateTime]
 }
 
 input TableBooleanFilterInput {
@@ -49,7 +66,6 @@ input TableCallFilterInput {
   callEndTime: TableAWSDateTimeFilterInput
   status: TableStringFilterInput
   wavFile: TableStringFilterInput
-  transcriptionFile: TableStringFilterInput
 }
 
 input TableFloatFilterInput {
@@ -89,18 +105,6 @@ input TableIntFilterInput {
   between: [Int]
 }
 
-input TableAWSDateTimeFilterInput {
-  ne: AWSDateTime
-  eq: AWSDateTime
-  le: AWSDateTime
-  lt: AWSDateTime
-  ge: AWSDateTime
-  gt: AWSDateTime
-  contains: AWSDateTime
-  notContains: AWSDateTime
-  between: [AWSDateTime]
-}
-
 input TableStringFilterInput {
   ne: String
   eq: String
@@ -123,19 +127,20 @@ input UpdateCallInput {
   callEndTime: AWSDateTime
   status: String
   wavFile: String
-  transcriptionFile: String
+  transcriptionFile: AWSJSON
   transcription: AWSJSON
-  queries: [AWSJSON]
+  queries: AWSJSON
 }
 
 type Mutation @aws_api_key @aws_cognito_user_pools {
   createCall(input: CreateCallInput!): Call
   updateCall(input: UpdateCallInput!): Call
   deleteCall(input: DeleteCallInput!): Call
+  addQueryToCall(input: AddQueryToCallInput!): Call
 }
 
 type Query @aws_api_key @aws_cognito_user_pools {
-  getCall(callId: String!): Call
+  getCall(transactionId: String!): Call
   listCalls(
     filter: TableCallFilterInput
     limit: Int
@@ -144,10 +149,28 @@ type Query @aws_api_key @aws_cognito_user_pools {
 }
 
 type Subscription {
-  onCreateCall(callId: String, status: String, queries: [AWSJSON]): Call
-    @aws_subscribe(mutations: ["createCall"])
-  onUpdateCall(callId: String, status: String, queries: [AWSJSON]): Call
-    @aws_subscribe(mutations: ["updateCall"])
-  onDeleteCall(callId: String, status: String, queries: [AWSJSON]): Call
-    @aws_subscribe(mutations: ["deleteCall"])
+  onCreateCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["createCall"])
+  onUpdateCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["updateCall"])
+  onDeleteCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["deleteCall"])
+  addQueryToCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["addQueryToCall"])
 }

@@ -37,6 +37,7 @@ interface LambdaResourcesProps {
 export class LambdaResources extends Construct {
   controlSageMakerLambda: IFunction;
   sageMakerRole: Role;
+  startSummarizationLambda: IFunction;
 
   constructor(scope: Construct, id: string, props: LambdaResourcesProps) {
     super(scope, id);
@@ -135,7 +136,7 @@ export class LambdaResources extends Construct {
       ],
     });
 
-    const startSummarizationLambda = new DockerImageFunction(
+    this.startSummarizationLambda = new DockerImageFunction(
       this,
       'startSummarizationLambda',
       {
@@ -158,13 +159,13 @@ export class LambdaResources extends Construct {
         },
       },
     );
-    props.recordingBucket.grantReadWrite(startSummarizationLambda);
+    props.recordingBucket.grantReadWrite(this.startSummarizationLambda);
 
     props.graphqlEndpoint.grantMutation(startSummarizationRole);
 
     props.recordingBucket.addEventNotification(
       EventType.OBJECT_CREATED,
-      new LambdaDestination(startSummarizationLambda),
+      new LambdaDestination(this.startSummarizationLambda),
       { prefix: 'transcribeOutput' },
     );
 

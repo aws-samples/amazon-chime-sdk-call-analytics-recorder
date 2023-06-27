@@ -1,10 +1,4 @@
 import { App, Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
-import {
-  IUserPool,
-  IUserPoolClient,
-  UserPool,
-  UserPoolClient,
-} from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 import { config } from 'dotenv';
 import {
@@ -24,12 +18,6 @@ import {
 } from './';
 
 config();
-
-interface CognitoOutput {
-  userPool: IUserPool;
-  userPoolClient: IUserPoolClient;
-  userPoolRegion: string;
-}
 
 export interface AmazonChimeSDKCallAnalyticsRecordingStackProps
   extends StackProps {
@@ -54,30 +42,18 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
     super(scope, id, props);
 
     recorderEnvValidator(props);
-    let cognito: CognitoOutput;
-
-    if (props.userPoolRegion && props.userPool && props.userPoolClient) {
-      cognito = {
-        userPoolRegion: props.userPoolRegion,
-        userPool: UserPool.fromUserPoolArn(this, 'userPoolId', props.userPool),
-        userPoolClient: UserPoolClient.fromUserPoolClientId(
-          this,
-          'userPoolClientId',
-          props.userPoolClient,
-        ),
-      };
-    } else {
-      cognito = new CognitoResources(this, 'Cognito', {
-        allowedDomain: props.allowedDomain || '',
-      });
-    }
 
     const s3Resources = new S3Resources(this, 'S3Resources');
+
+    const cognitoResource = new CognitoResources(this, 'Cognito', {
+      allowedDomain: props.allowedDomain || '',
+      recordingBucket: s3Resources.recordingBucket,
+    });
 
     const dataBaseResources = new DatabaseResources(this, 'DatabaseResources');
 
     const appSyncResources = new AppSyncResources(this, 'AppSyncResources', {
-      userPool: cognito.userPool,
+      userPool: cognitoResource.userPool,
       callTable: dataBaseResources.callTable,
     });
 
@@ -116,7 +92,7 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
       this,
       'apiGatewayResources',
       {
-        // connectionTable: dataBaseResources.connectionTable,
+        startSummarizationLambda: lambdaResources.startSummarizationLambda,
         logLevel: props.logLevel,
         controlSageMakerLambda: lambdaResources.controlSageMakerLambda,
       },
@@ -131,13 +107,15 @@ export class AmazonChimeSDKCallAnalyticsRecording extends Stack {
       applicationLoadBalancer: vpcResources.applicationLoadBalancer,
       phoneNumber: vcResources.phoneNumber!,
       voiceConnector: vcResources.voiceConnector,
-      userPool: cognito.userPool,
-      userPoolClient: cognito.userPoolClient,
-      userPoolRegion: cognito.userPoolRegion,
+      userPool: cognitoResource.userPool,
+      userPoolClient: cognitoResource.userPoolClient,
+      userPoolRegion: cognitoResource.userPoolRegion,
       logLevel: props.logLevel,
       controlSageMakerApi: apiGatewayResources.controlSageMakerApi,
       graphqlEndpoint: appSyncResources.graphqlEndpoint,
       publicSshKey: props.publicSshKey,
+      recordingBucket: s3Resources.recordingBucket,
+      identityPool: cognitoResource.identityPool,
     });
 
     const distributionResources = new DistributionResources(

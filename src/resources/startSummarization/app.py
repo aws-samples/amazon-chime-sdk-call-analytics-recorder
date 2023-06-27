@@ -11,7 +11,7 @@ from cohere_sagemaker import Client as CohereClient
 graphql_endpoint = os.environ.get('GRAPHQL_ENDPOINT')
 graphql_api_key = os.environ.get('GRAPHQL_API_KEY')
 
-mutation = '''
+update_call_mutation = '''
 mutation UpdateCall($input: UpdateCallInput!) {
     updateCall(input: $input) {
     callId
@@ -26,6 +26,23 @@ mutation UpdateCall($input: UpdateCallInput!) {
     queries
     transcription
     }
+}
+'''
+
+add_query_mutation = '''
+mutation AddQueryToCall($input: AddQueryToCallInput!) {
+    addQueryToCall(input: $input) {
+    transactionId
+    queries
+    }
+}
+'''
+
+query_transcription_file = '''
+query GetTranscriptionFile($transactionId: String!) {
+  getCall(transactionId: $transactionId) {
+    transcriptionFile
+  }
 }
 '''
 
@@ -298,29 +315,26 @@ def put_summary(summary_event, prompt_id):
     s3.put_object(Bucket=OUTPUT_BUCKET, Key=key, Body=summary_event)
 
 
-def update_call_in_graphql_api(transaction_id, status, transcription=None, queries=None):
+def update_call_in_graphql_api(transaction_id, status, **kwargs):
     logger.info('%s Updating call in GraphQL API: %s', LOG_PREFIX, transaction_id)
     variables = {
         'input': {
             'transactionId': transaction_id,
             'status': status,
-            'queries': queries,
-            'transcription': transcription
         }
     }
 
-    if transcription is not None:
-        transcription = json.dumps(transcription).replace('\\n', '\\\\n')
-        variables['input']['transcription'] = transcription
-        logger.info('%s Transcription: %s', LOG_PREFIX, transcription)
-
-    if queries is not None:
-        modified_queries = [json.dumps(query).replace('\\n', '\\\\n') for query in queries]
-        variables['input']['queries'] = modified_queries
-        logger.info('%s Queries: %s', LOG_PREFIX, modified_queries)
+    for key, value in kwargs.items():
+        if value is not None:
+            if key == 'transcription' or key == 'queries':
+                value = json.dumps(value).replace('\\n', '\\\\n')
+            elif key == 'transcriptionFile':
+                value = json.dumps(value)
+            variables['input'][key] = value
+            logger.info('%s %s: %s', LOG_PREFIX, key.capitalize(), value)
 
     data = {
-        'query': mutation,
+        'query': update_call_mutation,
         'variables': variables
     }
 
@@ -344,33 +358,147 @@ def update_call_in_graphql_api(transaction_id, status, transcription=None, queri
         logger.error('%s Response: %s', LOG_PREFIX, response.text)
 
 
+def add_query_to_call(transaction_id, queries):
+    logger.info('%s Adding query to call: %s', LOG_PREFIX, transaction_id)
+    variables = {
+        'input': {
+            'transactionId': transaction_id,
+            'queries': json.dumps(queries).replace('\\n', '\\\\n')
+        }
+    }
+
+    data = {
+        'query': add_query_mutation,
+        'variables': variables
+    }
+
+    headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': graphql_api_key
+    }
+
+    logger.info('%s GraphQL Request: %s', LOG_PREFIX, data)
+    response = requests.post(graphql_endpoint, json=data, headers=headers)
+
+    if response.status_code == 200:
+        result = response.json()
+        logger.info('%s GraphQL Response: %s', LOG_PREFIX, result)
+        if result and 'data' in result and 'addQueryToCall' in result['data']:
+            updated_call = result['data']['addQueryToCall']
+            logger.info('%s Query added successfully: %s', LOG_PREFIX, updated_call)
+        else:
+            logger.error('%s Error adding query. Invalid response data: %s', LOG_PREFIX, result)
+    else:
+        logger.error('%s Error adding queries. Status code: %s', LOG_PREFIX, response.status_code)
+        logger.error('%s Response: %s', LOG_PREFIX, response.text)
+
+
+def get_transcription_file(transaction_id):
+    logger.info('%s Querying transcription file for transaction: %s', LOG_PREFIX, transaction_id)
+
+    variables = {
+        'transactionId': transaction_id
+    }
+
+    graphql_headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': graphql_api_key
+    }
+
+    graphql_data = {
+        'query': query_transcription_file,
+        'variables': variables
+    }
+
+    response = requests.post(graphql_endpoint, json=graphql_data, headers=graphql_headers)
+    logger.info('%s GraphQL Response: %s', LOG_PREFIX, response.text)
+    if response.status_code == 200:
+        result = response.json()
+        if 'data' in result and 'getCall' in result['data']:
+            transcription_object = json.loads(result['data']['getCall']['transcriptionFile'])
+            logger.info('%s Transcription file retrieved successfully: %s', LOG_PREFIX, transcription_object)
+            return transcription_object
+        else:
+            logger.error('%s Error retrieving call. Invalid response data: %s', LOG_PREFIX, result)
+    else:
+        logger.error('%s Error retrieving call. Status code: %s', LOG_PREFIX, response.status_code)
+        logger.error('%s Response: %s', LOG_PREFIX, response.text)
+
+
 def handler(event, context):
     global LOG_PREFIX
     LOG_PREFIX = 'StartSummarization Notification: '
 
     logger.info('%s Received event: %s', LOG_PREFIX, event)
 
-    key = event['Records'][0]['s3']['object']['key']
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    transaction_id = key.split('/')[1].split('_')[0].rstrip('.json')
+    if 'Records' in event:
+        # S3 Object creation event
+        key = event['Records'][0]['s3']['object']['key']
+        bucket = event['Records'][0]['s3']['bucket']['name']
+        transaction_id = key.split('/')[1].split('_')[0].rstrip('.json')
+        logger.info('%s Received object: %s', LOG_PREFIX, key)
+        logger.info('%s Received bucket: %s', LOG_PREFIX, bucket)
 
-    logger.info('%s Received object: %s', LOG_PREFIX, key)
-    logger.info('%s Received bucket: %s', LOG_PREFIX, bucket)
+        if not key.lower().endswith('.json') and not key.lower().endswith('.ogg'):
+            logger.info('%s Skipping non-JSON object: %s', LOG_PREFIX, key)
+            return
 
-    if not key.lower().endswith('.json') and not key.lower().endswith('.ogg'):
-        logger.info('%s Skipping non-JSON object: %s', LOG_PREFIX, key)
-        return
+        s3_object = s3.get_object(Bucket=bucket, Key=key)
+        transcription_object = {'bucket': bucket, 'key': key}
+        transcript = load_transcript(s3_object)
+        prompt_id = str(uuid.uuid4())
+        logger.info('%s Transcript: %s', LOG_PREFIX, transcript)
+        logger.info('%s Prompt ID: %s', LOG_PREFIX, prompt_id)
+        update_call_in_graphql_api(transaction_id, "Summarizing", transcriptionFile=transcription_object)
+        summary_dict = run_call(transcript, question=SUMMARY_QUESTION)
+        summary_event = prepare_summary(summary_dict)
+        summary_event["summaryEvent"]['prompt_id'] = prompt_id
+        put_summary(summary_event, prompt_id)
+        query = [{"prompt": summary_event['summaryEvent']['question'], "response": summary_event['summaryEvent']['final_summary']}]
+        update_call_in_graphql_api(transaction_id, "Summarized", transcription=summary_dict['transcription'], queries=query)
+        return summary_event
+    elif 'body' in event:
+        # API Gateway POST request
+        body = json.loads(event['body'])
+        transaction_id = body['transactionId']
+        query = body['query']
+        update_call_in_graphql_api(transaction_id, "Summarizing")
+        transcription_object = get_transcription_file(transaction_id)
 
-    s3_object = s3.get_object(Bucket=bucket, Key=key)
+        if transcription_object is not None:
+            s3_object = s3.get_object(Bucket=transcription_object['bucket'], Key=transcription_object['key'])
+            transcript = load_transcript(s3_object)
+            prompt_id = str(uuid.uuid4())
+            logger.info('%s Transcript: %s', LOG_PREFIX, transcript)
+            logger.info('%s Prompt ID: %s', LOG_PREFIX, prompt_id)
+            summary_dict = run_call(transcript, question=query)
+            summary_event = prepare_summary(summary_dict)
+            summary_event["summaryEvent"]['prompt_id'] = prompt_id
+            put_summary(summary_event, prompt_id)
+            query = [{"prompt": summary_event['summaryEvent']['question'], "response": summary_event['summaryEvent']['final_summary']}]
+            add_query_to_call(transaction_id, query)
 
-    transcript = load_transcript(s3_object)
-    prompt_id = str(uuid.uuid4())
-    logger.info('%s Transcript: %s', LOG_PREFIX, transcript)
-    logger.info('%s Prompt ID: %s', LOG_PREFIX, prompt_id)
-    update_call_in_graphql_api(transaction_id, "Summarizing")
-    summary_dict = run_call(transcript, question=SUMMARY_QUESTION)
-    summary_event = prepare_summary(summary_dict)
-    summary_event["summaryEvent"]['prompt_id'] = prompt_id
-    put_summary(summary_event, prompt_id)
-    query = [{"prompt": summary_event['summaryEvent']['question'], "response": summary_event['summaryEvent']['final_summary']}]
-    update_call_in_graphql_api(transaction_id, "Summarized", transcription=summary_dict['transcription'], queries=query)
+            headers = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST',
+                'Access-Control-Allow-Credentials': 'true',
+            }
+
+            return {
+                'statusCode': 200,
+                'headers': headers,
+                'body': json.dumps(summary_event)
+            }
+        else:
+            return {
+                'statusCode': 500,
+                'headers': headers,
+                'body': 'Error querying transcription file'
+            }
+    else:
+        logger.error('%s Unsupported event type: %s', LOG_PREFIX, event)
+        return {
+            'statusCode': 400,
+            'body': 'Unsupported event type'
+        }

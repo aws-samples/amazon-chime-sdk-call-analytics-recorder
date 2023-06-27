@@ -13,6 +13,7 @@ export const listCallsQuery = gql`
         status
         wavFile
         transcriptionFile
+        transcription
         queries
       }
     }
@@ -31,6 +32,7 @@ export const getCallQuery = gql`
       status
       wavFile
       transcriptionFile
+      transcription
       queries
     }
   }

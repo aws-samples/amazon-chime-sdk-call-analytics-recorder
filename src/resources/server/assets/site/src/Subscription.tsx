@@ -4,6 +4,7 @@ import {
   onCreateCall,
   onUpdateCall,
   onDeleteCall,
+  addQueryToCall,
 } from './graphql/subscriptions';
 import { useContext, useEffect } from 'react';
 import { CallContext } from './CallContext';
@@ -53,6 +54,13 @@ type OnDeleteCall = {
     transcriptionFile: string;
     transcription: string;
     queries: any[];
+  };
+};
+
+type AddQueryToCall = {
+  addQueryToCall?: {
+    queries: any[];
+    transactionId: string;
   };
 };
 
@@ -108,10 +116,27 @@ export const Subscription: React.FC = () => {
       },
     });
 
+    const addQueryToCallSubscription = API.graphql<
+      GraphQLSubscription<AddQueryToCall>
+    >(graphqlOperation(addQueryToCall)).subscribe({
+      next: ({ provider, value }) => {
+        console.log({ provider, value });
+        const updatedCall = value.data?.addQueryToCall;
+        if (updatedCall) {
+          console.log('Query added to call:', updatedCall);
+          callContext.addQueryToCall(updatedCall);
+        }
+      },
+      error: (error) => {
+        console.warn('Error subscribing to addQueryToCall:', error);
+      },
+    });
+
     return () => {
       createCallSubscription.unsubscribe();
       updateCallSubscription.unsubscribe();
       deleteCallSubscription.unsubscribe();
+      addQueryToCallSubscription.unsubscribe();
     };
   }, []);
 

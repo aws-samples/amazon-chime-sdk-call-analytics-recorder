@@ -4,7 +4,7 @@ import React, {
   PropsWithChildren,
   useEffect,
 } from 'react';
-import { API, graphqlOperation } from 'aws-amplify';
+import { API } from 'aws-amplify';
 import { GraphQLQuery } from '@aws-amplify/api';
 import { listCallsQuery } from './graphql/queries';
 
@@ -19,7 +19,12 @@ export type Call = {
   wavFile: string;
   transcriptionFile: string;
   transcription: string;
-  queries: any[];
+  queries: string;
+};
+
+export type QueryUpdate = {
+  transactionId: string;
+  queries: string;
 };
 
 type ListCallsResponse = {
@@ -32,12 +37,14 @@ type CallContextValue = {
   calls: Call[];
   addCall: (call: Call) => void;
   updateCall: (updatedCall: Call) => void;
+  addQueryToCall: (updatedQueries: QueryUpdate) => void;
 };
 
 const initialCallContextValue: CallContextValue = {
   calls: [],
   addCall: () => {},
   updateCall: () => {},
+  addQueryToCall: () => {},
 };
 
 export const CallContext = createContext(initialCallContextValue);
@@ -64,6 +71,19 @@ export const CallProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     setCalls((prevCalls: Call[]) => [...prevCalls, call]);
   };
 
+  const addQueryToCall = (updatedCall: QueryUpdate) => {
+    setCalls((prevCalls: Call[]) => {
+      const updatedCalls = prevCalls.map((call) => {
+        if (call.transactionId === updatedCall.transactionId) {
+          console.log(`UpdatedCall: ${JSON.stringify(updatedCall)}`);
+          return { ...call, queries: updatedCall.queries };
+        }
+        return call;
+      });
+      return updatedCalls;
+    });
+  };
+
   const updateCall = (updatedCall: Call) => {
     setCalls((prevCalls: Call[]) => {
       const updatedCalls = prevCalls.map((call) => {
@@ -80,6 +100,7 @@ export const CallProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     calls,
     addCall,
     updateCall,
+    addQueryToCall,
   };
 
   return (

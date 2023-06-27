@@ -67,6 +67,7 @@ export const handler = async (event: { Records: S3EventRecord[] }) => {
   }
 
   const job_name = key.split('/')[1].split('_')[0];
+  const wavFile = key.split('/')[1];
 
   const output_key = `${OUTPUT_BUCKET_PREFIX}${job_name}.json`;
   const media_format = key.toLowerCase().endsWith('.wav') ? 'wav' : 'ogg';
@@ -92,7 +93,7 @@ export const handler = async (event: { Records: S3EventRecord[] }) => {
     input: {
       transactionId: job_name,
       status: 'Transcribing',
-      wavFile: `s3://${bucket}/${key}`,
+      wavFile: wavFile,
     },
   };
 

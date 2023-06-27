@@ -1,9 +1,12 @@
 /* eslint-disable import/no-extraneous-dependencies */
-// import { WebSocketApi, WebSocketStage } from '@aws-cdk/aws-apigatewayv2-alpha';
 import { RemovalPolicy, Duration, Stack } from 'aws-cdk-lib';
 import { RestApi } from 'aws-cdk-lib/aws-apigateway';
 import { GraphqlApi } from 'aws-cdk-lib/aws-appsync';
-import { IUserPool, IUserPoolClient } from 'aws-cdk-lib/aws-cognito';
+import {
+  IUserPool,
+  IUserPoolClient,
+  CfnIdentityPool,
+} from 'aws-cdk-lib/aws-cognito';
 import {
   Vpc,
   SecurityGroup,
@@ -60,8 +63,10 @@ interface ServerProps {
   userPool: IUserPool;
   userPoolClient: IUserPoolClient;
   userPoolRegion: string;
+  identityPool: CfnIdentityPool;
   graphqlEndpoint: GraphqlApi;
   publicSshKey: string;
+  recordingBucket: Bucket;
 }
 
 export class ServerResources extends Construct {
@@ -213,7 +218,15 @@ export class ServerResources extends Construct {
             ),
             InitFile.fromString(
               '/home/ubuntu/site/.env',
-              `API_GATEWAY_URL=${props.controlSageMakerApi.url}\n\rPHONE_NUMBER=${props.phoneNumber.phoneNumber}\r\nUSER_POOL_REGION=${props.userPoolRegion}\r\nUSER_POOL_ID=${props.userPool.userPoolId}\r\USER_POOL_CLIENT_ID=${props.userPoolClient.userPoolClientId}\r\nGRAPHQL_ENDPOINT=${props.graphqlEndpoint.graphqlUrl}\r\n`,
+              `API_GATEWAY_URL=${props.controlSageMakerApi.url}
+              PHONE_NUMBER=${props.phoneNumber.phoneNumber}
+              USER_POOL_REGION=${props.userPoolRegion}
+              USER_POOL_ID=${props.userPool.userPoolId}
+              USER_POOL_CLIENT_ID=${props.userPoolClient.userPoolClientId}
+              GRAPHQL_ENDPOINT=${props.graphqlEndpoint.graphqlUrl}
+              S3_BUCKET=${props.recordingBucket.bucketName}
+              IDENTITY_POOL_ID=${props.identityPool.ref}
+              VOICE_CONNECTOR=${props.voiceConnector.voiceConnectorId}`,
             ),
             InitCommand.shellCommand('chmod +x /etc/config_asterisk.sh'),
             InitCommand.shellCommand('/etc/config_asterisk.sh'),
