@@ -28,9 +28,6 @@ export interface AmazonChimeSDKCallAnalyticsRecordingStackProps
   modelPackageArn: string;
   logLevel: string;
   allowedDomain?: string;
-  userPool?: string;
-  userPoolClient?: string;
-  userPoolRegion?: string;
   publicSshKey: string;
 }
 export class AmazonChimeSDKCallAnalyticsRecording extends Stack {

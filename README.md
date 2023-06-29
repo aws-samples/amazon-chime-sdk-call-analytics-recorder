@@ -1,6 +1,8 @@
-## Amazon Chime SDK Call Analytics Recorder
+## Amazon Chime SDK Call Analytics Recorder with Summarization
 
-This demo will configure and deploy an example of a call recording application using the Amazon Chime SDK Call Analytics Media Insights Pipeline feature.
+This demo will configure and deploy an example of a call recording application using the Amazon Chime SDK Call Analytics Media Insights Pipeline feature. Additionally, this demo will produce a call summarization using the transcription of the call.
+
+![Overview](images/CallAnalyticsRecording-Overview.png)
 
 ### Amazon Chime SDK Call Analytics
 
@@ -11,20 +13,19 @@ Amazon Chime SDK call analytics allows you to develop low-code solutions for rea
 - AWS Account and credentials
 - Basic understanding of SIP telephony
 - Node >v16
-- Docker running (for some configurations)
+- Docker running
 
 ### Optional
 
-- Output Bucket
 - SIPREC capable telephony
 
 ## How It Works
 
-This demo includes both an automatic and selective recording option. With automatic recording, all calls to the Amazon Chime SDK Voice Connector will be recorded and stored in the designated Amazon Simple Storage Service (S3) Bucket. These objects will be stored with a prefix of the Amazon Chime SDK Voice Connector ID. No other compute is required to use this option.
+In this demo, all calls to the created Amazon Chime SDK Voice Connector will be recorded and stored in an Amazon Simple Storage Service (S3) Bucket. These objects will be stored with a prefix of the Amazon Chime SDK Voice Connector ID. Once the recording is completed, it will be transcribed using Amazon Transcribe. Once this is completed, the transcription will be used to generate a summarization of the call.
 
-### Automatic Recording Configuration
+### Configuration
 
-To enable automatic call recording, you must:
+To enable recording with an Amazon Chime SDK call analytics configuration associated with an Amazon Chime SDK voice connector, you must:
 
 - Create an S3 bucket
 - Create an AWS Identity and Access Management (IAM) role
@@ -33,7 +34,7 @@ To enable automatic call recording, you must:
 - Enable streaming on the Amazon Chime SDK Voice Connector
 - Associate the Amazon Chime SDK call analytics configuration with the previously created Amazon Chime SDK Voice Connector
 
-Deploying this demo will complete all of these steps for you.
+Deploying this demo will complete all of these steps for you but they can be completed by AWS Console or AWS Command Line Interface (AWS CLI) as well.
 
 #### Call analytics configuration
 
@@ -45,208 +46,93 @@ In this example, we have created an Amazon Chime SDK Call analytics configuratio
 
 ![AutomaticRecordingStreamingConfiguration](images/AutomaticRecordingStreamingConfiguration.png)
 
-Next, we will deploy and configure an Amazon Chime SDK voice connector with Streaming enabled, a notification target of `EventBridge`, 24 hours of data retention, and the previously created Call analytics configuration associated. These settings will allow us to capture the Real-time Transport Protocol (RTP) packets and store them in an S3 bucket without any other compute required.
+Next, we will deploy and configure an Amazon Chime SDK voice connector with Streaming enabled, a notification target of `EventBridge`, 24 hours of data retention, and the previously created Call analytics configuration associated. These settings will allow us to capture the Real-time Transport Protocol (RTP) packets and store them in an S3 bucket as a WAV or OGG file.
 
 #### Voice Connector Options
 
-This demo can be deployed using an Amazon Chime SDK Voice Connector configured to use either SIPREC or with PSTN access. If you have a device capable of generating SIPREC data, you can enable this option by configuring the `.env` file with these options:
+This demo will be deployed using an Amazon Chime SDK Voice Connector configured to use PSTN access. Amazon Chime SDK voice connectors can also be configured to use [SIPREC](https://docs.aws.amazon.com/chime-sdk/latest/ag/start-kinesis-vc.html#siprec). If you have a device capable of generating SIPREC data, More information on configuring your SIP endpoint can be found [here](https://aws.amazon.com/chime/chime-sdk/resources/) in the `Configuration Guides` section.
 
-```bash
-BUILD_ASTERISK='false'
-SIPREC_CIDRS='192.0.2.0/28,98.51.100.0/30'
-```
+## Call Summarization
 
-Replace the CIDR addresses with your SIP endpoint's public IP addresses. More information on configuring your SIP endpoint can be found [here](https://aws.amazon.com/chime/chime-sdk/resources/) in the `Configuration Guides` section.
+This demo also includes an automatic call summarization component that can be used to process the recorded files with a large language model to generate insights into the content of that call.
 
-If you do not have a device capable of generating SIPREC traffic, you can use the included Asterisk PBX to simulate traffic. To use this option, configuring the `.env` file with these options:
+### Getting started
 
-```bash
-BUILD_ASTERISK='true'
-```
+This demo uses a Cohere Generate Model that is available in the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-6dmzzso5vu5my). In order to use this demo, you will need to subscribe to this product. This demo uses this model through a SageMaker endpoint. In order to use this model with SageMaker, you will need access to [`Foundation models`](https://us-east-1.console.aws.amazon.com/sagemaker/home?region=us-east-1#/foundation-models) in the SageMaker `JumpStart` section. Once these steps have been completed, you will be able to use this demo.
 
-> **_NOTE:_** This Asterisk will be run using AWS Fargate and will incur continuous charges. Be sure to stop this service when not in use. Commands for this are included in the CDK Output.
+## How it works
 
-#### SIPREC Option
+### Start Transcribe
 
-![SIPRECOverview](images/CallAnalyticsRecording-AutomaticSIPREC.png)
-
-#### Asterisk Option
-
-![AsteriskOverview](images/CallAnalyticsRecording-AutomaticAsterisk.png)
-
-### Selective Recording
-
-Selective recording uses many of the same configurations as above with a few exceptions and additional requirements. When using selective recording, the Amazon Chime SDK call analytics configuration is not associated with the Amazon Chime SDK Voice Connector. Instead, an API request is made to start the Amazon Chime SDK media insights pipeline on a case by case basis. This request requires additional compute to coordinate. In this example, we will use an AWS Lambda function triggered by an Amazon EventBridge notification to start that process.
-
-### EventBridge Notification
-
-When the Amazon Chime SDK voice connector receives a call, either a PSTN based call, or SIPREC call, it will emit a notification to [Amazon EventBridge](https://aws.amazon.com/eventbridge/). In this demo, that notification will be sent to an AWS Lambda function that will process that notification. The notification will look something like this:
-
-```json
-{
-  "version": "0",
-  "id": "ac48f3fe-0b49-7b20-56af-bcefec745020",
-  "detail-type": "Chime VoiceConnector Streaming Status",
-  "source": "aws.chime",
-  "account": "112233445566",
-  "time": "2023-04-05T22:14:02Z",
-  "region": "us-east-1",
-  "resources": [],
-  "detail": {
-    "callId": "089b1d79-d4ca-4f74-b36b-681f606937f6",
-    "direction": "Inbound",
-    "fromNumber": "+18155551212",
-    "isCaller": false,
-    "mediaType": "audio/L16",
-    "startFragmentNumber": "91343852333181437344442219794598596340754947404",
-    "startTime": "2023-04-05T22:14:02.238Z",
-    "streamArn": "arn:aws:kinesisvideo:us-east-1:112233445566:stream/ChimeVoiceConnector-bfggco08s5m5esgxfskzks-94709a8e-c2cc-4f92-9ab1-af74c54c041a/1680731924044",
-    "toNumber": "+19285557777",
-    "transactionId": "ec97a8ff-3f83-4de2-8d73-d988070f6af4",
-    "voiceConnectorId": "bfggco08s5m5esgxfskzks",
-    "streamingStatus": "STARTED",
-    "version": "0"
-  }
-}
-```
-
-### Stored Data
-
-There are several key pieces of information in this notification that we will need to capture and save:
+When a new files is added to the output bucket, either through the recording mechanism of the recording demo or through a manual upload, the `OBJECT_CREATED` event triggers the `startTranscribe` AWS Lambda function.
 
 ```python
-def put_item(call_id, stream_arn, is_caller, start_time):
-    dynamodb.put_item(
-        TableName=CALL_TABLE,
-        Item={
-            'call_id': {'S': call_id},
-            'stream_arn': {'S': stream_arn},
-            'is_caller': {'S': is_caller},
-            'start_time': {'N': str(start_time)}
-            }
+    transcribe.start_transcription_job(
+        TranscriptionJobName=job_name,
+        Media={'MediaFileUri': f's3://{bucket}/{key}'},
+        Settings= {"ShowSpeakerLabels": True, "MaxSpeakerLabels":2},
+        MediaFormat=media_format,
+        LanguageCode='en-US',
+        OutputBucketName=OUTPUT_BUCKET,
+        OutputKey=output_key
     )
 ```
 
-This Python function in the Lambda code will store the `call_id`, `stream_arn`, `is_caller`, and `start_time` of the call. When a call is streamed to [Amazon Kinesis Video Stream](https://aws.amazon.com/kinesis/video-streams/?amazon-kinesis-video-streams-resources-blog) from the Amazon Chime SDK voice connector, two separate streams are created. These streams contain the audio from the two media paths in a SIP call. `is_caller` is a calculated field that is used to differentiate the two streams and is not necessarily the actual caller. A single call will generate two notifications - one where `is_caller` is `true` and one where `is_caller` is `false`. We will capture the `stream_arn` of each of these streams and use that information later when the call is completed.
+This will create a JSON object in the `OUTPUT_BUCKET` that we will use for the next step.
 
-### Call Ends
+![TranscribeOutput](/images/TranscribeOutput.png)
 
-When the call ends, two more notifications will be sent by EventBridge to our `StartRecord` Lambda function. These notifications will look something like this:
+[This](/samples/Retail41.json) is an example of the output from Amazon Transcribe with the [`Retail41.wav`](/samples/Retail41.wav) as the input.
 
-```json
-{
-  "version": "0",
-  "id": "acf0d318-d990-723a-53d8-bc3ace0f5741",
-  "detail-type": "Chime VoiceConnector Streaming Status",
-  "source": "aws.chime",
-  "account": "112233445566",
-  "time": "2023-04-05T22:14:17Z",
-  "region": "us-east-1",
-  "resources": [],
-  "detail": {
-    "callId": "089b1d79-d4ca-4f74-b36b-681f606937f6",
-    "currentFragmentNumber": "91343852333181432457054944695917274706600548493",
-    "direction": "Inbound",
-    "endTime": "2023-04-05T22:14:17.788Z",
-    "fromNumber": "+18155551212",
-    "isCaller": true,
-    "startFragmentNumber": "91343852333181432392682062653077497216055113817",
-    "startTime": "2023-04-05T22:14:03.993Z",
-    "streamArn": "arn:aws:kinesisvideo:us-east-1:112233445566:stream/ChimeVoiceConnector-bfggco08s5m5esgxfskzks-2d439d05-cb93-49b6-ba14-f4ac55017d57/1680731931114",
-    "toNumber": "+19285557777",
-    "transactionId": "ec97a8ff-3f83-4de2-8d73-d988070f6af4",
-    "voiceConnectorId": "bfggco08s5m5esgxfskzks",
-    "streamingStatus": "ENDED",
-    "version": "0"
-  }
-}
-```
+We will need to process this JSON file before passing to our SageMaker endpoint for summarization.
 
-The key difference here is that `[detail][streamingStatus]` is now `ENDED`. Now that we know that the call has ended, we can begin the process of extracting the media from the KVS streams and storing in our S3 Bucket.
+## Summarization Process
 
-### Retrieving Stream Information
+Once the transcription has completed, the output file will be stored in the `OUTPUT_BUCKET`. When this happens, the `startSummarization` app that will process the JSON file created by Amazon Transcribe and create a prompt that will be delivered to our SageMaker endpoint to be processed by our Cohere model.
 
-```python
-def get_streams(call_id):
-    response = dynamodb.query(
-        TableName=CALL_TABLE,
-        KeyConditionExpression='call_id = :call_id',
-        ExpressionAttributeValues={
-            ':call_id': {'S': call_id}
-            }
-        )
-    return response['Items'] if 'Items' in response else None
-```
+The prompt that is passed to our SageMaker endpoint can be seen in the [SummarizationOutput](/samples/31a62a1d-5dab-4b8d-8f17-1dad22c6f075.json) file. This is the result of processing the Transcribe output into something more suitable for our Cohere request. We will then combine this with our question to produce the following:
 
-First, we will retrieve the information about the KVS stream ARNs we had previously stored in our Amazon DynamoDB table.
+#### Question
 
-### Create Media Insight Pipeline
+"What is the customer calling about and what are the next steps?",
 
-```python
-caller_stream_arn = stream_arns[0]['stream_arn']['S']
-not_caller_stream_arn = stream_arns[1]['stream_arn']['S']
-start_time = stream_arns[0]['start_time']['N']
-end_time = datetime.datetime.fromisoformat(event['detail']['endTime'][:-1])
-destination = 'arn:aws:s3:::' + RECORDING_BUCKET + RECORDING_BUCKET_PREFIX + "/" + event['detail']['callId'] + '.wav'
-response = media_pipelines.create_media_insights_pipeline(
-    MediaInsightsPipelineConfigurationArn=MEDIA_INSIGHT_PIPELINE_ARN,
-    KinesisVideoStreamRecordingSourceRuntimeConfiguration={
-        "Streams": [
-            {"StreamArn": caller_stream_arn},
-            {"StreamArn": not_caller_stream_arn}
-            ],
-        "FragmentSelector": {
-            "FragmentSelectorType": "ProducerTimestamp",
-            "TimestampRange": {
-                "StartTimestamp": int(start_time),
-                "EndTimestamp": int(end_time.timestamp())
-                },
-            }
-        },
-    S3RecordingSinkRuntimeConfiguration={
-        "Destination": destination,
-        "RecordingFileFormat": "Wav"
-    }
-)
-```
+#### Summary
 
-Using the stream ARNs, start time, and end time, we can call [`create_media_insights_pipeline`](https://boto3.amazonaws.com/v1/documentation/api/1.26.101/reference/services/chime-sdk-media-pipelines/client/create_media_insights_pipeline.html). In this case, we are referencing a `MediaInsightsPipelineConfigurationArn` that was created as part of this demo as well as the S3 Bucket referenced in that configuration. After the call is completed and we start this process, the media insight pipeline will consume the RTP packets from the KVS stream and put the file in the S3 bucket. This is why the data retention of the KVS stream must be set to a length greater than the longest possible call duration.
-
-### Adding metadata
-
-Additionally, we can add additional information to either the bucket we are putting the objects to, or a different location. In this demo, we are simply writing a JSON file to the same bucket with information from the call:
-
-```python
-def write_call_details_to_s3(event):
-    destination = RECORDING_BUCKET_PREFIX[1:] + "/" + event['detail']['callId'] + '.json'
-    data = {
-        'account': event['account'],
-        'callId': event['detail']['callId'],
-        'transactionId': event['detail']['transactionId'],
-        'direction': event['detail']['direction'],
-        'fromNumber': event['detail']['fromNumber'],
-        'toNumber': event['detail']['toNumber'],
-        'voiceConnectorId': event['detail']['voiceConnectorId'],
-        'startTime': event['detail']['startTime'],
-        'endTime': event['detail']['endTime']
-    }
-    json_data = json.dumps(data)
-    response = s3_client.put_object(
-        Bucket=RECORDING_BUCKET,
-        Key=destination,
-        Body=json_data
-    )
-```
+"The customer is calling Office and More to report an issue with their copier. The copier is giving an error message saying the copier quantity limit has been reached, but the customer believes they have unlimited copies with their rental. The customer is unable to print something they need for a project and needs assistance amending the contract. The customer is also asking about the next steps to resolve the issue. The customer service representative will need to speak with the appropriate person to amend the contract and provide the customer with the correct contact information. The customer will need to provide the customer service representative with the model number of the copier and the name of the business. The customer service representative will then look into the issue and try to resolve it as quickly as possible.",
 
 ## Testing It Out
 
-To see it in action, if you deployed the Asterisk instance, make a call to the phone number that is provided as part of the CDK output. This call will be answered on the Asterisk server and your voice will be echoed back to you. If you are using SIPREC instead, make a call through your telephony devices and make a SIPREC request to the Amazon Chime SDK voice connector.
+To test this demo, navigate to the Cloudfront Distribution webpage included in the output of the CDK.
+
+If 'Endpoint Status' shows as 'Endpoint disabled', click on 'Start Endpoint' to enable the SageMaker endpoint (This could take few mins to enable). Once 'Endpoint Status' shows as 'InService', you are ready to test.
+
+> **Attention** This deployment includes Amazon SageMaker endpoint which you incur additional charges when you start the SageMaker endpoint. We recommend you to stop the Amazon SageMaker endpoint by clicking on the 'Stop Endpoint' button once finished with the experiment to avoid unexpected charges. See [Amazon SageMaker pricing](https://aws.amazon.com/sagemaker/pricing/) for relevant costs.
+
+Make a call to the phone number that is provided as part of the CDK output. This call will be answered on the Asterisk server and a recording will be played simulating a call to an office supply store. If you are using SIPREC instead, make a call through your telephony devices and make a SIPREC request to the Amazon Chime SDK voice connector.
 
 ### Results
 
+#### S3 Bucket
+
 ![Result](images/Result.png)
 
-The result will be a `wav` file stored in your S3 Bucket with a filename of the `[detail]['callId]`.
+The result will be a `wav` file stored in your S3 Bucket with a filename of the `[detail]['callId']`.
+
+#### User Interface
+
+![UserInterface](images/CallAnalyticsRecordingUI.png)
+
+Using this user interface, you can see the transcription, queries, and play the recording audio file.
+
+### Queries
+
+![Queries](images/CallAnalyticsQueries.png)
+
+New queries can be made to the same SageMaker endpoint using the existing transcription to explore what can be learned from the call.
+
+## More Information
+
+For more information or to use this demo through a notebook instead of in a deployed application: [https://github.com/aws-samples/amazon-chime-sdk-notebooks](https://github.com/aws-samples/amazon-chime-sdk-notebooks)
 
 ## Deployment
 
@@ -254,46 +140,27 @@ The result will be a `wav` file stored in your S3 Bucket with a filename of the 
 
 Several options are available as part of the deployment and can be configured in the `.env` file. All are optional.
 
-- OUTPUT_BUCKET - This will control where the output files are stored. If this is not included, a new Bucket will be created.
-- RECORDING_BUCKET_PREFIX - This will control if an Bucket prefix is used when storing the output files. Defaults to no prefix.
-- BUILD_ASTERISK - This will determine if an Asterisk instance will be created during the deployment. This cannot be used with SIPREC_CIDRS. Defaults to 'true'.
-- SIPREC_CIDRS - These will be used if you are not deploying an Asterisk server and instead want to use their existing telephony to generate SIPREC traffic. They should use a comma separated string format: `'198.51.100.0/27','198.51.100.128/27'`.
 - LOG_LEVEL - Used to assist with debugging in the Lambda function and Asterisk instance. 'INFO' | 'DEBUG' | 'WARN' | 'ERROR'. Defaults to 'INFO'.
-- REMOVAL_POLICY - Used to control the removal policy of the new S3 Bucket that is created. Valid options: 'DESTROY' | 'RETAIN' | 'SNAPSHOT'. Defaults to 'DESTROY'
-- SELECTIVE_RECORDING - Used to control if automatic or selective recording is used. Defaults to 'false'.
+- PUBLIC_SSH_KEY - A key deployed to the server as an `authorized_key`.
+- CREATE_SAGEMAKER_ON_START - Used to control if the SageMaker endpoint is created when the CDK is deployed. 'true' | 'false' - Defaults to 'false'
+
+Configurations for Large Language Model (LLM) - It is unlikely that you will need to change these.
+
+- MODEL_NAME - 'deployed-cohere-gpt-medium'
+- ENDPOINT_NAME - 'deployed-cohere-gpt-medium'
+- COHERE_INSTANCE_TYPE - ml.g5.xlarge'
+- MODEL_PACKAGE_ARN - 'arn:aws:sagemaker:us-east-1:865070037744:model-package/cohere-gpt-medium-v1-5-15e34931a06235b7bac32dca396a970a
 
 ### To Deploy
 
 This demo will use an AWS Cloud Development Kit (AWS CDK) to deploy. To start the deployment:
 
 ```
-yarn launchRecorder
+yarn launch
 ```
 
 When finished, be sure to destroy any unneeded resources. You can destroy the entire demo:
 
 ```
-yarn cdk destroy amazon-chime-sdk-call-analytics-recording
+yarn cdk destroy
 ```
-
-If the default value for `REMOVAL_POLICY` is used, the output bucket will be destroyed and those files lost.
-
-## Working with Post Call Analytics
-
-A complementary demo that will work with this demo is the [Amazon Transcribe Post Call Analytics (PCA)](https://github.com/aws-samples/amazon-transcribe-post-call-analytics) demo. The PCA demo can be deployed to the same account as this demo and the output bucket of this demo can be used as the input bucket of the PCA demo. When used together like this, the files created by this demo will trigger the PCA demo to begin processing the file with [Amazon Transcribe](https://aws.amazon.com/transcribe/) or [Amazon Transcribe Call Analytics](https://aws.amazon.com/transcribe/call-analytics/).
-
-To use this demo with PCA, be sure to set your `.env` variables to include the input bucket from PCA as the `OUTPUT_BUCKET` and use `originalAudio` for `RECORDING_BUCKET_PREFIX`.
-
-## Call Summarization
-
-This demo also includes an automatic call summarization component that can be used to process the recorded files with a large language model to generate insights into the content of that call. Information on that can be found [here](./SUMMARIZATION.md)
-
-## Additional Notes
-
-### Using AWS CLI
-
-If you do not wish to deploy this demo using CDK, AWS Command Line Interface can be used. An overview of the commands required is available here: [CLI_COMMANDS](./CLI_COMMANDS.md)
-
-### Lambda function
-
-Because this uses commands that may not be available in all Lambda runtimes, the demo bundles a version of the AWS SDK that supports `create_media_insights_pipeline`. If you wish to use a different Lambda function or language, be sure to include a runtime that supports this or bundle a version of the AWS SDK that does.
