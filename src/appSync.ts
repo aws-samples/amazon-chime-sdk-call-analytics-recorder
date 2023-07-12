@@ -110,10 +110,10 @@ export class AppSyncResources extends Construct {
       typeName: 'Query',
       fieldName: 'getCall',
       requestMappingTemplate: MappingTemplate.fromFile(
-        './src/resources/graphql/Query.getCall.req.vtl',
+        './src/resources/graphql/Query.GetCall.req.vtl',
       ),
       responseMappingTemplate: MappingTemplate.fromFile(
-        './src/resources/graphql/Query.getCall.res.vtl',
+        './src/resources/graphql/Query.GetCall.res.vtl',
       ),
     });
 

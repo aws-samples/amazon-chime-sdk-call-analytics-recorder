@@ -21,7 +21,7 @@ type OnCreateCall = {
     wavFile: string;
     transcriptionFile: string;
     transcription: string;
-    queries: any[];
+    queries: string;
   };
 };
 
@@ -37,7 +37,7 @@ type OnUpdateCall = {
     wavFile: string;
     transcriptionFile: string;
     transcription: string;
-    queries: any[];
+    queries: string;
   };
 };
 
@@ -53,13 +53,13 @@ type OnDeleteCall = {
     wavFile: string;
     transcriptionFile: string;
     transcription: string;
-    queries: any[];
+    queries: string;
   };
 };
 
 type AddQueryToCall = {
   addQueryToCall?: {
-    queries: any[];
+    queries: string;
     transactionId: string;
   };
 };
