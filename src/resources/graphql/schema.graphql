@@ -1,0 +1,176 @@
+input AddQueryToCallInput {
+  transactionId: String!
+  queries: AWSJSON!
+}
+
+type Call @aws_api_key @aws_cognito_user_pools {
+  callId: String
+  transactionId: String!
+  fromNumber: String
+  toNumber: String
+  callStartTime: AWSDateTime
+  callEndTime: AWSDateTime
+  status: String
+  wavFile: String
+  transcriptionFile: AWSJSON
+  transcription: AWSJSON
+  queries: AWSJSON
+}
+
+type CallConnection @aws_api_key @aws_cognito_user_pools {
+  items: [Call]
+  nextToken: String
+}
+
+input CreateCallInput {
+  callId: String
+  transactionId: String!
+  fromNumber: String
+  toNumber: String
+  callStartTime: AWSDateTime
+  callEndTime: AWSDateTime
+  status: String
+  wavFile: String
+  transcriptionFile: AWSJSON
+  transcription: AWSJSON
+  queries: AWSJSON
+}
+
+input DeleteCallInput {
+  transactionId: String!
+}
+
+input TableAWSDateTimeFilterInput {
+  ne: AWSDateTime
+  eq: AWSDateTime
+  le: AWSDateTime
+  lt: AWSDateTime
+  ge: AWSDateTime
+  gt: AWSDateTime
+  contains: AWSDateTime
+  notContains: AWSDateTime
+  between: [AWSDateTime]
+}
+
+input TableBooleanFilterInput {
+  ne: Boolean
+  eq: Boolean
+}
+
+input TableCallFilterInput {
+  callId: TableStringFilterInput
+  transactionId: TableStringFilterInput
+  fromNumber: TableStringFilterInput
+  toNumber: TableStringFilterInput
+  callStartTime: TableAWSDateTimeFilterInput
+  callEndTime: TableAWSDateTimeFilterInput
+  status: TableStringFilterInput
+  wavFile: TableStringFilterInput
+}
+
+input TableFloatFilterInput {
+  ne: Float
+  eq: Float
+  le: Float
+  lt: Float
+  ge: Float
+  gt: Float
+  contains: Float
+  notContains: Float
+  between: [Float]
+}
+
+input TableIDFilterInput {
+  ne: ID
+  eq: ID
+  le: ID
+  lt: ID
+  ge: ID
+  gt: ID
+  contains: ID
+  notContains: ID
+  between: [ID]
+  beginsWith: ID
+}
+
+input TableIntFilterInput {
+  ne: Int
+  eq: Int
+  le: Int
+  lt: Int
+  ge: Int
+  gt: Int
+  contains: Int
+  notContains: Int
+  between: [Int]
+}
+
+input TableStringFilterInput {
+  ne: String
+  eq: String
+  le: String
+  lt: String
+  ge: String
+  gt: String
+  contains: String
+  notContains: String
+  between: [String]
+  beginsWith: String
+}
+
+input UpdateCallInput {
+  callId: String
+  transactionId: String!
+  fromNumber: String
+  toNumber: String
+  callStartTime: AWSDateTime
+  callEndTime: AWSDateTime
+  status: String
+  wavFile: String
+  transcriptionFile: AWSJSON
+  transcription: AWSJSON
+  queries: AWSJSON
+}
+
+type Mutation @aws_api_key @aws_cognito_user_pools {
+  createCall(input: CreateCallInput!): Call
+  updateCall(input: UpdateCallInput!): Call
+  deleteCall(input: DeleteCallInput!): Call
+  addQueryToCall(input: AddQueryToCallInput!): Call
+}
+
+type Query @aws_api_key @aws_cognito_user_pools {
+  getCall(transactionId: String!): Call
+  listCalls(
+    filter: TableCallFilterInput
+    limit: Int
+    nextToken: String
+  ): CallConnection
+}
+
+type Subscription {
+  onCreateCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["createCall"])
+  onUpdateCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["updateCall"])
+  onDeleteCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["deleteCall"])
+  addQueryToCall(
+    callId: String
+    status: String
+    transcription: String
+    queries: AWSJSON
+  ): Call @aws_subscribe(mutations: ["addQueryToCall"])
+}

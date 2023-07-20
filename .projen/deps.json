@@ -76,8 +76,40 @@
       "type": "build"
     },
     {
+      "name": "@aws-cdk/aws-apigatewayv2-alpha",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-cdk/aws-apigatewayv2-integrations-alpha",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-apigatewaymanagementapi",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-dynamodb",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-sagemaker",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-transcribe",
+      "type": "runtime"
+    },
+    {
+      "name": "@types/aws-lambda",
+      "type": "runtime"
+    },
+    {
       "name": "aws-cdk-lib",
       "version": "^2.70.0",
+      "type": "runtime"
+    },
+    {
+      "name": "aws-lambda",
       "type": "runtime"
     },
     {
@@ -91,6 +123,14 @@
     },
     {
       "name": "dotenv",
+      "type": "runtime"
+    },
+    {
+      "name": "graphql",
+      "type": "runtime"
+    },
+    {
+      "name": "graphql-request",
       "type": "runtime"
     }
   ],

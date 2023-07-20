@@ -9,6 +9,7 @@ const project = new awscdk.AwsCdkTypeScriptApp({
   authorAddress: 'https://aws.amazon.com',
   defaultReleaseBranch: 'main',
   appEntrypoint: 'amazon-chime-sdk-call-analytics-recording.ts',
+  eslintOptions: { ignorePatterns: ['src/resources/server/assets/site/**'] },
   depsUpgradeOptions: {
     ignoreProjen: false,
     workflowOptions: {
@@ -19,7 +20,20 @@ const project = new awscdk.AwsCdkTypeScriptApp({
     secret: 'GITHUB_TOKEN',
     allowedUsernames: ['schuettc'],
   },
-  deps: ['dotenv', 'cdk-amazon-chime-resources'],
+  deps: [
+    'dotenv',
+    'cdk-amazon-chime-resources',
+    '@aws-cdk/aws-apigatewayv2-alpha',
+    '@aws-cdk/aws-apigatewayv2-integrations-alpha',
+    '@aws-sdk/client-apigatewaymanagementapi',
+    '@aws-sdk/client-dynamodb',
+    '@aws-sdk/client-transcribe',
+    'aws-lambda',
+    '@types/aws-lambda',
+    '@aws-sdk/client-sagemaker',
+    'graphql-request',
+    'graphql',
+  ],
   autoApproveUpgrades: true,
   projenUpgradeSecret: 'PROJEN_GITHUB_TOKEN',
   defaultReleaseBranch: 'main',
@@ -34,16 +48,8 @@ const common_exclude = [
   '.DS_Store',
 ];
 
-project.addTask('launchAll', {
-  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --all --require-approval never',
-});
-
-project.addTask('launchRecorder', {
-  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-recording --require-approval never',
-});
-
-project.addTask('launchSummarizer', {
-  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy amazon-chime-sdk-call-analytics-summarization --require-approval never',
+project.addTask('launch', {
+  exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --require-approval never',
 });
 
 project.gitignore.exclude(...common_exclude);

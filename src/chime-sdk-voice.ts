@@ -1,5 +1,6 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import { Stack } from 'aws-cdk-lib';
+import { CfnEIP } from 'aws-cdk-lib/aws-ec2';
 import {
   ChimePhoneNumber,
   PhoneProductType,
@@ -8,14 +9,13 @@ import {
   PhoneCountry,
   NotificationTargetType,
   MediaInsightsPipeline,
+  Protocol,
 } from 'cdk-amazon-chime-resources';
 import { Construct } from 'constructs';
 
 interface VCResourcesProps {
-  buildAsterisk: string;
-  sipRecCidrs: string;
-  selectiveRecording: string;
   mediaInsightsConfiguration: MediaInsightsPipeline;
+  serverEip: CfnEIP;
 }
 export class VCResources extends Construct {
   public readonly phoneNumber?: ChimePhoneNumber;
@@ -26,19 +26,27 @@ export class VCResources extends Construct {
 
     this.voiceConnector = new ChimeVoiceConnector(this, 'voiceConnector', {
       region: Stack.of(this).region,
+      name: 'amazon-chime-sdk-recorder',
       encryption: false,
+      origination: [
+        {
+          host: props.serverEip.ref,
+          port: 5060,
+          protocol: Protocol.UDP,
+          priority: 1,
+          weight: 1,
+        },
+      ],
       termination: {
         callingRegions: ['US'],
-        terminationCidrs: props.sipRecCidrs
-          ? props.sipRecCidrs.split(',')
-          : ['198.51.100.0/27'],
+        terminationCidrs: [`${props.serverEip.ref}/32`],
       },
       streaming: {
         enabled: true,
         dataRetention: 24,
         notificationTargets: [NotificationTargetType.EVENTBRIDGE],
         mediaInsightsConfiguration: {
-          disabled: Boolean(props.selectiveRecording),
+          disabled: false,
           configurationArn:
             props.mediaInsightsConfiguration
               .mediaInsightsPipelineConfigurationArn,
@@ -46,15 +54,13 @@ export class VCResources extends Construct {
       },
     });
 
-    if (props.buildAsterisk == 'true' && !props.sipRecCidrs) {
-      this.phoneNumber = new ChimePhoneNumber(this, 'phoneNumber', {
-        phoneState: 'AZ',
-        phoneCountry: PhoneCountry.US,
-        phoneNumberType: PhoneNumberType.LOCAL,
-        phoneProductType: PhoneProductType.VC,
-      });
+    this.phoneNumber = new ChimePhoneNumber(this, 'phoneNumber', {
+      phoneState: 'AZ',
+      phoneCountry: PhoneCountry.US,
+      phoneNumberType: PhoneNumberType.LOCAL,
+      phoneProductType: PhoneProductType.VC,
+    });
 
-      this.phoneNumber.associateWithVoiceConnector(this.voiceConnector);
-    }
+    this.phoneNumber.associateWithVoiceConnector(this.voiceConnector);
   }
 }
