@@ -100,6 +100,10 @@ const common_exclude = [
   '.DS_Store',
 ];
 
+project.cdkConfig.json.addOverride('context', {
+  '@aws-cdk/aws-ec2:uniqueImdsv2TemplateName': true,
+});
+
 project.addTask('launch', {
   exec: 'yarn && yarn projen && yarn build && yarn cdk bootstrap && yarn cdk deploy --require-approval never',
 });

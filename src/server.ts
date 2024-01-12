@@ -266,7 +266,7 @@ export class ServerResources extends Construct {
       instanceType: InstanceType.of(InstanceClass.C7G, InstanceSize.MEDIUM),
       machineImage: ubuntuAmi,
       instanceName: 'Amazon Chime SDK Recorder Server',
-      // requireImdsv2: true,
+      requireImdsv2: true,
       userData: userData,
       blockDevices: [
         {
