@@ -16,11 +16,7 @@ echo "VOICE_CONNECTOR: ${VOICE_CONNECTOR}"
 echo "PHONE_NUMBER: ${PHONE_NUMBER}"
 echo "INSTANCE_ID: ${INSTANCE_ID}"
 
-
-# aws chime put-voice-connector-origination --voice-connector-id ${VOICE_CONNECTOR} --origination '{"Routes": [{"Host": "'${PUBLIC_IP}'","Port": 5060,"Protocol": "UDP","Priority": 1,"Weight": 1}],"Disabled": false}'
-# aws chime put-voice-connector-termination --voice-connector-id ${VOICE_CONNECTOR} --termination '{"CpsLimit": 1, "CallingRegions": ["US"], "CidrAllowedList": ["'${PUBLIC_IP}'/32"], "Disabled": false}'
-
-
+apt-get remove libopus-dev
 usermod -aG audio,dialout asterisk
 chown -R asterisk.asterisk /etc/asterisk
 chown -R asterisk.asterisk /var/{lib,log,spool}/asterisk

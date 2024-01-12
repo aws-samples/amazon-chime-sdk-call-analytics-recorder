@@ -4,7 +4,6 @@ import { InstanceTypes, ModelArns } from './cohereInput';
 export function recorderEnvValidator(
   props: AmazonChimeSDKCallAnalyticsRecordingStackProps,
 ) {
-  console.log(props);
   if (props.logLevel) {
     if (
       props.logLevel.toLowerCase() !== 'error' &&
